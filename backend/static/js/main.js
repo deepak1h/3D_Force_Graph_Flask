@@ -4,6 +4,11 @@ let graphData = null;
 let highlightedNodes = new Set();
 let highlightedLinks = new Set();
 let hoverNode = null;
+let hoverLink = null;
+let currentMode = '3D'; // '2D' or '3D'
+let activeFilter = { type: null, value: null }; // { type: 'division'|'circle'|'zone'|'edge', value: '...' }
+let fixNodes = false;
+let nodeColorAttribute = 'division';
 
 // DOM Elements
 const uploadContainer = document.getElementById('upload-container');
@@ -13,22 +18,42 @@ const loadingIndicator = document.getElementById('loading-indicator');
 const errorMessage = document.getElementById('error-message');
 const graphContainer = document.getElementById('graph-container');
 const newFileBtn = document.getElementById('new-file-btn');
-const settingsPanel = document.getElementById('settings-panel');
-const settingsToggle = document.getElementById('settings-toggle');
-const infoPanel = document.getElementById('info-panel');
-const infoContent = document.getElementById('info-content');
-const infoTitle = document.getElementById('info-title');
-const closeInfoBtn = document.getElementById('close-info-btn');
+
+// Sidebar Elements
+const sidebarPanel = document.getElementById('sidebar-panel');
+const sidebarToggle = document.getElementById('sidebar-toggle');
+const closeSidebarBtn = document.getElementById('close-sidebar-btn');
+const tabBtns = document.querySelectorAll('.tab-btn');
+const tabFilters = document.getElementById('tab-filters');
+const tabSettings = document.getElementById('tab-settings');
+
+// Filter Elements
+const searchInput = document.getElementById('search-input');
+const filterContainers = {
+    division: document.getElementById('filter-division'),
+    circle: document.getElementById('filter-circle'),
+    zone: document.getElementById('filter-zone'),
+    edge: document.getElementById('filter-edge')
+};
 
 // Settings Elements
 const dagSelect = document.getElementById('dag-mode');
 const pauseBtn = document.getElementById('pause-btn');
 const zoomBtn = document.getElementById('zoom-btn');
-const engineBtns = document.querySelectorAll('.engine-btn');
 const dimBtns = document.querySelectorAll('.dim-btn');
+const particleSpeedSlider = document.getElementById('particle-speed');
+const nodeColorSelect = document.getElementById('node-color-by');
+const fixNodesToggle = document.getElementById('fix-nodes-toggle');
+
+// Info Panel
+const infoPanel = document.getElementById('info-panel');
+const infoContent = document.getElementById('info-content');
+const infoTitle = document.getElementById('info-title');
+const closeInfoBtn = document.getElementById('close-info-btn');
 
 // Constants
 const NODE_R = 4;
+const BACKGROUND_COLOR = '#000011'; // Dark background for consistency
 
 // --- Event Listeners ---
 
@@ -52,27 +77,130 @@ fileInput.addEventListener('change', (e) => {
 
 // UI Controls
 newFileBtn.addEventListener('click', resetApp);
-settingsToggle.addEventListener('click', toggleSettings);
+sidebarToggle.addEventListener('click', () => sidebarPanel.classList.remove('translate-x-full'));
+closeSidebarBtn.addEventListener('click', () => sidebarPanel.classList.add('translate-x-full'));
 closeInfoBtn.addEventListener('click', closeInfo);
 
-// Settings
+// Tab Switching
+tabBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+        // Update Tabs
+        tabBtns.forEach(b => {
+            b.classList.remove('text-indigo-400', 'border-b-2', 'border-indigo-400', 'bg-gray-800/50');
+            b.classList.add('text-gray-400');
+        });
+        btn.classList.add('text-indigo-400', 'border-b-2', 'border-indigo-400', 'bg-gray-800/50');
+        btn.classList.remove('text-gray-400');
+
+        // Show Content
+        const tab = btn.dataset.tab;
+        if (tab === 'filters') {
+            tabFilters.classList.remove('hidden');
+            tabSettings.classList.add('hidden');
+        } else {
+            tabFilters.classList.add('hidden');
+            tabSettings.classList.remove('hidden');
+        }
+    });
+});
+
+// Search
+searchInput.addEventListener('input', (e) => {
+    const term = e.target.value.toLowerCase();
+    if (!term) {
+        if (!activeFilter.value) resetHighlight();
+        else applyFilter(); // Re-apply active filter if search cleared
+        return;
+    }
+
+    const matchingNodes = graphData.nodes.filter(n =>
+        (n.legal_name && n.legal_name.toLowerCase().includes(term)) ||
+        (n.name && n.name.toLowerCase().includes(term)) ||
+        (n.id && n.id.toString().toLowerCase().includes(term))
+    );
+
+    if (matchingNodes.length > 0) {
+        highlightedNodes.clear();
+        highlightedLinks.clear();
+        matchingNodes.forEach(node => highlightedNodes.add(node.id));
+        updateHighlight();
+
+        // Zoom to first match if only one
+        if (matchingNodes.length === 1 && Graph) {
+            zoomToNode(matchingNodes[0]);
+        }
+    } else {
+        if (term.length > 0) {
+            highlightedNodes.clear();
+            highlightedLinks.clear();
+            updateHighlight();
+        }
+    }
+});
+
+
+// Settings - Layout
 dagSelect.addEventListener('change', (e) => {
     if (Graph) {
         const mode = e.target.value || null;
         Graph.dagMode(mode);
         Graph.dagLevelDistance(mode ? 50 : null);
+
+        // Force layout update
+        if (currentMode === '3D') {
+            Graph.numDimensions(3);
+        } else {
+            Graph.d3ReheatSimulation();
+        }
     }
 });
 
+// Settings - Appearance
+particleSpeedSlider.addEventListener('input', (e) => {
+    document.getElementById('val-particle-speed').textContent = e.target.value;
+    if (Graph) Graph.linkDirectionalParticleSpeed(parseFloat(e.target.value) * 0.001);
+});
+
+nodeColorSelect.addEventListener('change', (e) => {
+    nodeColorAttribute = e.target.value;
+    if (Graph) {
+        // Re-calculate color map
+        const values = [...new Set(graphData.nodes.map(n => n[nodeColorAttribute]).filter(Boolean))].sort();
+        const colors = generateColors(values.length);
+        const colorMap = {};
+        values.forEach((v, i) => colorMap[v] = colors[i]);
+
+        Graph.nodeColor(node => {
+            if (highlightedNodes.size > 0 && !highlightedNodes.has(node.id)) return 'rgba(100, 100, 100, 0.2)';
+            return colorMap[node[nodeColorAttribute]] || '#9ca3af';
+        });
+    }
+});
+
+fixNodesToggle.addEventListener('click', () => {
+    fixNodes = !fixNodes;
+    const span = fixNodesToggle.querySelector('span');
+    if (fixNodes) {
+        fixNodesToggle.classList.add('bg-indigo-600');
+        fixNodesToggle.classList.remove('bg-gray-700');
+        span.classList.add('translate-x-5');
+    } else {
+        fixNodesToggle.classList.remove('bg-indigo-600');
+        fixNodesToggle.classList.add('bg-gray-700');
+        span.classList.remove('translate-x-5');
+    }
+});
+
+// Controls
 pauseBtn.addEventListener('click', () => {
     if (Graph) {
         const isPaused = pauseBtn.querySelector('span').textContent === 'Resume';
         if (isPaused) {
             Graph.resumeAnimation();
-            pauseBtn.innerHTML = '<i data-lucide="pause" class="w-5 h-5"></i><span>Pause</span>';
+            pauseBtn.innerHTML = '<i data-lucide="pause" class="w-4 h-4"></i><span>Pause</span>';
         } else {
             Graph.pauseAnimation();
-            pauseBtn.innerHTML = '<i data-lucide="play" class="w-5 h-5"></i><span>Resume</span>';
+            pauseBtn.innerHTML = '<i data-lucide="play" class="w-4 h-4"></i><span>Resume</span>';
         }
         lucide.createIcons();
     }
@@ -82,29 +210,22 @@ zoomBtn.addEventListener('click', () => {
     if (Graph) Graph.zoomToFit(400);
 });
 
-engineBtns.forEach(btn => {
-    btn.addEventListener('click', (e) => {
-        const val = e.target.dataset.value;
-        engineBtns.forEach(b => {
-            b.classList.remove('bg-indigo-600', 'text-white', 'font-semibold', 'shadow');
-            b.classList.add('hover:bg-gray-600');
-        });
-        e.target.classList.add('bg-indigo-600', 'text-white', 'font-semibold', 'shadow');
-        e.target.classList.remove('hover:bg-gray-600');
-        if (Graph) Graph.forceEngine(val);
-    });
-});
-
+// 2D/3D Toggle
 dimBtns.forEach(btn => {
     btn.addEventListener('click', (e) => {
-        const val = parseInt(e.target.dataset.value);
+        const val = e.target.dataset.value; // '2' or '3'
+        const mode = val === '2' ? '2D' : '3D';
+
+        if (currentMode === mode) return;
+
         dimBtns.forEach(b => {
-            b.classList.remove('bg-indigo-600', 'text-white', 'font-semibold', 'shadow');
-            b.classList.add('hover:bg-gray-600');
+            b.classList.remove('bg-indigo-600', 'text-white', 'shadow-sm');
+            b.classList.add('text-gray-300', 'hover:bg-gray-600');
         });
-        e.target.classList.add('bg-indigo-600', 'text-white', 'font-semibold', 'shadow');
-        e.target.classList.remove('hover:bg-gray-600');
-        if (Graph) Graph.numDimensions(val);
+        e.target.classList.add('bg-indigo-600', 'text-white', 'shadow-sm');
+        e.target.classList.remove('text-gray-300', 'hover:bg-gray-600');
+
+        switchGraphMode(mode);
     });
 });
 
@@ -135,12 +256,12 @@ async function handleFile(file) {
         uploadContainer.classList.add('hidden');
         graphContainer.classList.remove('hidden');
         newFileBtn.classList.remove('hidden');
-        settingsToggle.classList.remove('hidden');
-        settingsPanel.classList.remove('-translate-x-full');
-        settingsToggle.style.left = '320px';
-        settingsToggle.innerHTML = '<i data-lucide="chevron-left" class="w-6 h-6"></i>';
+        sidebarToggle.classList.remove('hidden');
+        sidebarPanel.classList.remove('translate-x-full');
 
+        processLinkCurvature(graphData.links);
         initGraph(graphData);
+        populateFilters(graphData);
         lucide.createIcons();
 
     } catch (e) {
@@ -152,39 +273,230 @@ async function handleFile(file) {
     }
 }
 
+function switchGraphMode(mode) {
+    currentMode = mode;
+    if (Graph) {
+        Graph._destructor(); // Cleanup
+        graphContainer.innerHTML = ''; // Ensure container is empty
+        Graph = null;
+    }
+    if (graphData) {
+        initGraph(graphData);
+    }
+}
+
+function populateFilters(data) {
+    // Clear existing
+    Object.values(filterContainers).forEach(el => el.innerHTML = '');
+
+    // Helper to create filter buttons
+    const createFilterBtn = (container, type, value, color) => {
+        if (!value) return;
+        const btn = document.createElement('button');
+        btn.className = 'w-full text-left px-3 py-2 rounded-md hover:bg-gray-800 flex items-center space-x-3 transition-colors group';
+        btn.innerHTML = `
+            <span class="w-3 h-3 rounded-full shrink-0" style="background-color: ${color || '#9ca3af'}"></span>
+            <span class="text-sm text-gray-300 group-hover:text-white truncate">${value}</span>
+        `;
+
+        btn.addEventListener('click', () => handleFilterClick(type, value, btn));
+        container.appendChild(btn);
+    };
+
+    // 1. Division
+    const divisions = [...new Set(data.nodes.map(n => n.division).filter(Boolean))].sort();
+    const divColors = generateColors(divisions.length);
+    divisions.forEach((div, i) => createFilterBtn(filterContainers.division, 'division', div, divColors[i]));
+
+    // 2. Circle
+    const circles = [...new Set(data.nodes.map(n => n.circle).filter(Boolean))].sort();
+    const circleColors = generateColors(circles.length);
+    circles.forEach((c, i) => createFilterBtn(filterContainers.circle, 'circle', c, circleColors[i]));
+
+    // 3. Zone
+    const zones = [...new Set(data.nodes.map(n => n.zone).filter(Boolean))].sort();
+    const zoneColors = generateColors(zones.length);
+    zones.forEach((z, i) => createFilterBtn(filterContainers.zone, 'zone', z, zoneColors[i]));
+
+    // 4. Edge Color
+    const edgeColors = [...new Set(data.links.map(l => l.color).filter(Boolean))].sort();
+    const edgeColorPalette = generateColors(edgeColors.length);
+    edgeColors.forEach((c, i) => createFilterBtn(filterContainers.edge, 'edge', c, edgeColorPalette[i]));
+}
+
+function handleFilterClick(type, value, btnElement) {
+    // Toggle logic
+    if (activeFilter.type === type && activeFilter.value === value) {
+        // Deselect
+        activeFilter = { type: null, value: null };
+        btnElement.classList.remove('bg-gray-800');
+    } else {
+        // Select new
+        activeFilter = { type, value };
+        // Clear all active states
+        document.querySelectorAll('#sidebar-panel button').forEach(b => b.classList.remove('bg-gray-800'));
+        btnElement.classList.add('bg-gray-800');
+    }
+
+    applyFilter();
+}
+
+function applyFilter() {
+    highlightedNodes.clear();
+    highlightedLinks.clear();
+
+    if (!activeFilter.value) {
+        updateHighlight();
+        return;
+    }
+
+    if (activeFilter.type === 'edge') {
+        // Filter by Edge Color
+        graphData.links.forEach(link => {
+            if (link.color === activeFilter.value) {
+                highlightedLinks.add(getLinkId(link));
+                const sourceId = typeof link.source === 'object' ? link.source.id : link.source;
+                const targetId = typeof link.target === 'object' ? link.target.id : link.target;
+                highlightedNodes.add(sourceId);
+                highlightedNodes.add(targetId);
+            }
+        });
+    } else {
+        // Filter by Node Attribute
+        graphData.nodes.forEach(node => {
+            if (node[activeFilter.type] === activeFilter.value) {
+                highlightedNodes.add(node.id);
+            }
+        });
+
+        // Also highlight connected links? Optional. Let's keep it simple: just nodes.
+    }
+
+    updateHighlight();
+}
+
+// Helper for min-max scaling
+function scaleValue(value, minVal, maxVal, minSize, maxSize) {
+    if (minVal === maxVal) return (minSize + maxSize) / 2;
+    const val = parseFloat(value);
+    if (isNaN(val)) return minSize;
+
+    // Clamp
+    if (val <= minVal) return minSize;
+    if (val >= maxVal) return maxSize;
+
+    return minSize + ((val - minVal) / (maxVal - minVal)) * (maxSize - minSize);
+}
+
 function initGraph(data) {
-    // Color mapping
-    const divisions = [...new Set(data.nodes.map(n => n.division).filter(Boolean))];
-    const colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf'];
+    // Calculate ranges for scaling
+    // Nodes: amount -> 2-10px
+    const nodeAmounts = data.nodes.map(n => parseFloat(n.amount)).filter(v => !isNaN(v));
+    const minNodeAmt = nodeAmounts.length ? Math.min(...nodeAmounts) : 0;
+    const maxNodeAmt = nodeAmounts.length ? Math.max(...nodeAmounts) : 1;
+
+    // Links: Assesment Amount -> 1-5px
+    const linkAmounts = data.links.map(l => parseFloat(l['Assesment Amount'])).filter(v => !isNaN(v));
+    const minLinkAmt = linkAmounts.length ? Math.min(...linkAmounts) : 0;
+    const maxLinkAmt = linkAmounts.length ? Math.max(...linkAmounts) : 1;
+
+    // Color mapping based on current selection
+    const values = [...new Set(data.nodes.map(n => n[nodeColorAttribute]).filter(Boolean))].sort();
+    const colors = generateColors(values.length);
     const colorMap = {};
-    divisions.forEach((d, i) => colorMap[d] = colors[i % colors.length]);
+    values.forEach((v, i) => colorMap[v] = colors[i]);
 
-    const linkColors = [...new Set(data.links.map(l => l.color).filter(Boolean))];
-    const linkColorMap = {};
-    linkColors.forEach((c, i) => linkColorMap[c] = colors[i % colors.length]);
+    // Color mapping for Edge Colors
+    const edgeColors = [...new Set(data.links.map(l => l.color).filter(Boolean))].sort();
+    const edgeColorPalette = generateColors(edgeColors.length);
+    const edgeColorMap = {};
+    edgeColors.forEach((c, i) => edgeColorMap[c] = edgeColorPalette[i]);
 
-    Graph = ForceGraph3D()
+    const GraphConstructor = currentMode === '2D' ? ForceGraph : ForceGraph3D;
+
+    Graph = GraphConstructor()
         (graphContainer)
         .width(graphContainer.offsetWidth)
         .height(graphContainer.offsetHeight)
+        .backgroundColor(BACKGROUND_COLOR) // Consistent background
         .graphData(data)
-        .nodeLabel('name')
+        .nodeLabel(node => node.legal_name || node.name || node.id) // Prefer legal_name
+        .linkLabel(link => link.assamtstr || link.label || '') // Prefer assamtstr
         .nodeColor(node => {
-            if (highlightedNodes.size > 0 && !highlightedNodes.has(node.id)) return 'rgba(100, 100, 100, 0.1)';
-            return colorMap[node.division] || 'rgba(173, 216, 230, 0.75)';
-        })
-        .linkWidth(link => (highlightedLinks.has(getLinkId(link)) ? 2 : 1))
-        .linkColor(link => {
-            if (highlightedNodes.size > 0) {
-                return highlightedLinks.has(getLinkId(link)) ? (linkColorMap[link.color] || 'rgba(255,255,255,0.8)') : 'rgba(100,100,100,0.05)';
+            if (highlightedNodes.size > 0 && !highlightedNodes.has(node.id)) return 'rgba(100, 100, 100, 0.2)'; // Increased visibility
+            if (hoverNode && hoverNode !== node && !highlightedNodes.has(node.id)) return 'rgba(100, 100, 100, 0.2)'; // Dim on hover
+            if (hoverLink) {
+                const sourceId = typeof hoverLink.source === 'object' ? hoverLink.source.id : hoverLink.source;
+                const targetId = typeof hoverLink.target === 'object' ? hoverLink.target.id : hoverLink.target;
+                if (node.id !== sourceId && node.id !== targetId) return 'rgba(100, 100, 100, 0.2)';
             }
-            return linkColorMap[link.color] || 'rgba(255,255,255,0.5)';
+            return colorMap[node[nodeColorAttribute]] || '#9ca3af';
+        })
+        .nodeVal(node => {
+            // Scale node size (radius) based on amount (2-10px)
+            return scaleValue(node.amount, minNodeAmt, maxNodeAmt, 2, 10);
+        })
+        .nodeRelSize(1) // Use nodeVal directly as radius (or close to it)
+        .linkWidth(link => {
+            // Scale link width based on Assesment Amount (1-5px)
+            let width = scaleValue(link['Assesment Amount'], minLinkAmt, maxLinkAmt, 1, 5);
+
+            if (highlightedLinks.has(getLinkId(link))) return width * 2;
+            if (hoverLink === link) return width * 2;
+            return width;
+        })
+        .linkCurvature('curvature')
+        .linkColor(link => {
+            const color = edgeColorMap[link.color] || '#ffffff';
+            if (highlightedNodes.size > 0 || highlightedLinks.size > 0) {
+                return highlightedLinks.has(getLinkId(link)) ? color : 'rgba(100,100,100,0.15)'; // Increased visibility
+            }
+            if (hoverNode) {
+                // If hovering a node, dim links not connected to it
+                const sourceId = typeof link.source === 'object' ? link.source.id : link.source;
+                const targetId = typeof link.target === 'object' ? link.target.id : link.target;
+                if (sourceId !== hoverNode.id && targetId !== hoverNode.id) return 'rgba(100,100,100,0.15)';
+            }
+            return color;
         })
         .linkDirectionalArrowLength(3.5)
         .linkDirectionalArrowRelPos(1)
+        .linkDirectionalParticles(link => {
+            // Map 'Degree' to particle count
+            const degree = parseInt(link.Degree);
+            return !isNaN(degree) ? Math.min(degree, 5) : 2; // Cap at 5
+        })
+        .linkDirectionalParticleWidth(link => {
+            // Map 'Invoice count' to particle width
+            const count = parseFloat(link['Invoice count']);
+            return !isNaN(count) ? Math.min(count, 4) : 2;
+        })
+        .linkDirectionalParticleSpeed(0.006) // Fixed speed as requested (6 -> 0.006)
+        .linkHoverPrecision(5) // Increased precision
         .onNodeClick(handleNodeClick)
         .onLinkClick(handleLinkClick)
-        .onBackgroundClick(resetHighlight);
+        .onBackgroundClick(resetHighlight)
+        .onNodeHover(node => {
+            hoverNode = node || null;
+            updateHighlight();
+            graphContainer.style.cursor = node ? 'pointer' : null;
+        })
+        .onLinkHover(link => {
+            hoverLink = link || null;
+            updateHighlight();
+            graphContainer.style.cursor = link ? 'pointer' : null;
+        })
+        .onNodeDragEnd(node => {
+            if (fixNodes) {
+                node.fx = node.x;
+                node.fy = node.y;
+                if (currentMode === '3D') node.fz = node.z;
+            } else {
+                node.fx = null;
+                node.fy = null;
+                if (currentMode === '3D') node.fz = null;
+            }
+        });
 
     // Resize handler
     window.addEventListener('resize', () => {
@@ -201,6 +513,7 @@ function getLinkId(link) {
 
 function handleNodeClick(node) {
     showInfo(node, 'Node Details');
+    zoomToNode(node);
 
     highlightedNodes.clear();
     highlightedLinks.clear();
@@ -216,9 +529,7 @@ function handleNodeClick(node) {
         }
     });
 
-    Graph.nodeColor(Graph.nodeColor())
-        .linkWidth(Graph.linkWidth())
-        .linkColor(Graph.linkColor());
+    updateHighlight();
 }
 
 function handleLinkClick(link) {
@@ -233,18 +544,39 @@ function handleLinkClick(link) {
     highlightedNodes.add(sourceId);
     highlightedNodes.add(targetId);
 
-    Graph.nodeColor(Graph.nodeColor())
-        .linkWidth(Graph.linkWidth())
-        .linkColor(Graph.linkColor());
+    updateHighlight();
+}
+
+function zoomToNode(node) {
+    if (currentMode === '3D') {
+        const distance = 100;
+        const distRatio = 1 + distance / Math.hypot(node.x, node.y, node.z);
+        Graph.cameraPosition(
+            { x: node.x * distRatio, y: node.y * distRatio, z: node.z * distRatio }, // new position
+            node, // lookAt ({ x, y, z })
+            3000  // ms transition duration
+        );
+    } else {
+        Graph.centerAt(node.x, node.y, 1000);
+        Graph.zoom(8, 2000);
+    }
 }
 
 function resetHighlight() {
     highlightedNodes.clear();
     highlightedLinks.clear();
-    Graph.nodeColor(Graph.nodeColor())
-        .linkWidth(Graph.linkWidth())
-        .linkColor(Graph.linkColor());
+    activeFilter = { type: null, value: null };
+    document.querySelectorAll('#sidebar-panel button').forEach(b => b.classList.remove('bg-gray-800'));
+    updateHighlight();
     closeInfo();
+}
+
+function updateHighlight() {
+    if (Graph) {
+        Graph.nodeColor(Graph.nodeColor())
+            .linkWidth(Graph.linkWidth())
+            .linkColor(Graph.linkColor());
+    }
 }
 
 function showInfo(data, title) {
@@ -259,7 +591,7 @@ function showInfo(data, title) {
     });
 
     sortedKeys.forEach(key => {
-        if (['vx', 'vy', 'vz', 'x', 'y', 'z', 'index', '__indexColor', '__threeObj', '__lineObj', '__arrowObj'].includes(key)) return;
+        if (['vx', 'vy', 'vz', 'x', 'y', 'z', 'index', '__indexColor', '__threeObj', '__lineObj', '__arrowObj', 'curvature'].includes(key)) return;
 
         let value = data[key];
         if (key === 'source' || key === 'target') {
@@ -279,31 +611,17 @@ function showInfo(data, title) {
     });
 
     infoContent.appendChild(dl);
-    infoPanel.classList.remove('translate-x-full');
+    infoPanel.classList.remove('translate-y-[120%]');
 }
 
 function closeInfo() {
-    infoPanel.classList.add('translate-x-full');
-}
-
-function toggleSettings() {
-    const isClosed = settingsPanel.classList.contains('-translate-x-full');
-    if (isClosed) {
-        settingsPanel.classList.remove('-translate-x-full');
-        settingsToggle.style.left = '320px';
-        settingsToggle.innerHTML = '<i data-lucide="chevron-left" class="w-6 h-6"></i>';
-    } else {
-        settingsPanel.classList.add('-translate-x-full');
-        settingsToggle.style.left = '0';
-        settingsToggle.innerHTML = '<i data-lucide="settings" class="w-6 h-6"></i>';
-    }
-    lucide.createIcons();
+    infoPanel.classList.add('translate-y-[120%]');
 }
 
 function resetApp() {
     graphData = null;
     if (Graph) {
-        Graph._destructor(); // Cleanup if available, or just clear container
+        Graph._destructor();
         graphContainer.innerHTML = '';
         Graph = null;
     }
@@ -311,8 +629,71 @@ function resetApp() {
     uploadContainer.classList.remove('hidden');
     graphContainer.classList.add('hidden');
     newFileBtn.classList.add('hidden');
-    settingsToggle.classList.add('hidden');
-    settingsPanel.classList.add('-translate-x-full');
-    infoPanel.classList.add('translate-x-full');
+    sidebarToggle.classList.add('hidden');
+    sidebarPanel.classList.add('translate-x-full');
+    infoPanel.classList.add('translate-y-[120%]');
     fileInput.value = '';
+}
+
+function processLinkCurvature(links) {
+    const linkGroups = {};
+
+    links.forEach(link => {
+        const sourceId = typeof link.source === 'object' ? link.source.id : link.source;
+        const targetId = typeof link.target === 'object' ? link.target.id : link.target;
+
+        // Group by unordered pair to handle cycles (A->B and B->A) and parallel edges
+        const key = [sourceId, targetId].sort().join('__');
+        if (!linkGroups[key]) linkGroups[key] = [];
+        linkGroups[key].push(link);
+    });
+
+    Object.keys(linkGroups).forEach(key => {
+        const group = linkGroups[key];
+        const len = group.length;
+
+        if (len > 1) {
+            // Multi-edge (parallel or cycle)
+            group.forEach((link, i) => {
+                const sourceId = typeof link.source === 'object' ? link.source.id : link.source;
+                const targetId = typeof link.target === 'object' ? link.target.id : link.target;
+                const isForward = sourceId < targetId;
+                const direction = isForward ? 1 : -1;
+
+                // Distribute curvature
+                let rawCurvature;
+                if (len === 2) {
+                    rawCurvature = i === 0 ? 0.2 : -0.2;
+                } else {
+                    rawCurvature = ((i / (len - 1)) - 0.5);
+                }
+
+                // Adjust curvature based on direction so anti-parallel edges curve away from each other
+                // If sourceId === targetId (self-loop), direction is -1, which is fine
+                link.curvature = rawCurvature * direction;
+            });
+        } else {
+            // Single edge
+            const link = group[0];
+            const sourceId = typeof link.source === 'object' ? link.source.id : link.source;
+            const targetId = typeof link.target === 'object' ? link.target.id : link.target;
+
+            if (sourceId === targetId) {
+                // Self-loop
+                link.curvature = 0.4;
+            } else {
+                // Single straight edge
+                link.curvature = 0;
+            }
+        }
+    });
+}
+
+function generateColors(count) {
+    const colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf'];
+    if (count <= colors.length) return colors.slice(0, count);
+    // If more needed, repeat
+    const res = [];
+    for (let i = 0; i < count; i++) res.push(colors[i % colors.length]);
+    return res;
 }

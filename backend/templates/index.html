@@ -7,6 +7,7 @@
   <title>3D Force Graph Visualizer</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="//unpkg.com/3d-force-graph"></script>
+  <script src="//unpkg.com/force-graph"></script>
   <link rel="stylesheet" href="/static/css/style.css">
   <!-- Lucide Icons -->
   <script src="https://unpkg.com/lucide@latest"></script>
@@ -15,123 +16,237 @@
 <body class="bg-gray-900 text-white overflow-hidden h-screen w-screen flex flex-col">
 
   <!-- Header -->
-  <header class="bg-gray-800 border-b border-gray-700 p-4 flex justify-between items-center z-10 shrink-0">
-    <h1 class="text-xl font-bold text-indigo-400">3D Force Graph Visualizer</h1>
-    <button id="new-file-btn"
-      class="hidden px-4 py-2 bg-indigo-600 hover:bg-indigo-500 rounded text-sm font-medium transition-colors">
-      New File
-    </button>
+  <header class="bg-gray-800 border-b border-gray-700 p-4 flex justify-between items-center z-10 shrink-0 shadow-md">
+    <div class="flex items-center space-x-4">
+      <h1 class="text-xl font-bold text-indigo-400 tracking-wide">Force Graph Visualizer</h1>
+      <!-- 2D/3D Toggle -->
+      <div class="flex bg-gray-700 rounded-lg p-1">
+        <button
+          class="dim-btn px-3 py-1 text-xs font-bold rounded-md transition-all duration-200 hover:bg-gray-600 text-gray-300"
+          data-value="2">2D</button>
+        <button
+          class="dim-btn px-3 py-1 text-xs font-bold rounded-md transition-all duration-200 bg-indigo-600 text-white shadow-sm"
+          data-value="3">3D</button>
+      </div>
+    </div>
+    <div class="flex items-center space-x-3">
+      <button id="new-file-btn"
+        class="hidden px-4 py-2 bg-indigo-600 hover:bg-indigo-500 rounded-lg text-sm font-medium transition-colors shadow-sm flex items-center space-x-2">
+        <i data-lucide="file-plus" class="w-4 h-4"></i>
+        <span>New File</span>
+      </button>
+      <button id="sidebar-toggle"
+        class="hidden p-2 hover:bg-gray-700 rounded-lg transition-colors text-gray-300 hover:text-white">
+        <i data-lucide="menu" class="w-6 h-6"></i>
+      </button>
+    </div>
   </header>
 
-  <main class="flex-grow relative flex items-center justify-center">
+  <main class="flex-grow relative flex items-center justify-center bg-gradient-to-br from-gray-900 to-gray-800">
 
     <!-- File Upload Overlay -->
-    <div id="upload-container" class="w-full max-w-2xl text-center z-20">
+    <div id="upload-container" class="w-full max-w-2xl text-center z-20 p-6">
       <div id="drop-zone"
-        class="p-10 border-2 border-dashed border-gray-600 hover:border-indigo-500 hover:bg-gray-800/30 rounded-xl cursor-pointer transition-all duration-300">
+        class="p-12 border-2 border-dashed border-gray-600 hover:border-indigo-500 hover:bg-gray-800/50 rounded-2xl cursor-pointer transition-all duration-300 group">
         <input type="file" id="file-input" class="hidden" accept=".json,.gexf">
         <div class="flex flex-col items-center justify-center space-y-4">
-          <i data-lucide="upload" class="w-16 h-16 text-gray-500 transition-colors duration-300"></i>
-          <p class="text-lg font-semibold text-gray-300">
-            Drag & drop a file here or <span class="text-indigo-400">browse</span>
-          </p>
-          <p class="text-sm text-gray-500">Supports .json and .gexf files</p>
+          <div class="p-4 bg-gray-800 rounded-full group-hover:scale-110 transition-transform duration-300">
+            <i data-lucide="upload" class="w-10 h-10 text-indigo-400"></i>
+          </div>
+          <h3 class="text-xl font-bold text-gray-200">Upload Graph Data</h3>
+          <p class="text-gray-400">Drag & drop a file here or <span
+              class="text-indigo-400 font-medium hover:underline">browse</span></p>
+          <p class="text-xs text-gray-500 uppercase tracking-wide">Supports .json and .gexf</p>
         </div>
       </div>
-      <div id="loading-indicator" class="hidden mt-6 text-lg">
-        <div class="flex items-center justify-center space-x-2">
-          <div class="w-4 h-4 rounded-full bg-indigo-400 animate-bounce" style="animation-delay: 0s"></div>
-          <div class="w-4 h-4 rounded-full bg-indigo-400 animate-bounce" style="animation-delay: 0.2s"></div>
-          <div class="w-4 h-4 rounded-full bg-indigo-400 animate-bounce" style="animation-delay: 0.4s"></div>
+      <div id="loading-indicator" class="hidden mt-8">
+        <div class="flex flex-col items-center space-y-3">
+          <div class="w-12 h-12 border-4 border-indigo-500/30 border-t-indigo-500 rounded-full animate-spin"></div>
+          <p class="text-indigo-300 font-medium animate-pulse">Processing Graph Data...</p>
         </div>
-        <p class="mt-4">Processing file...</p>
       </div>
-      <p id="error-message" class="hidden mt-6 text-red-400 bg-red-900/50 p-3 rounded-lg"></p>
+      <p id="error-message" class="hidden mt-6 text-red-200 bg-red-900/40 border border-red-800 p-4 rounded-lg text-sm">
+      </p>
     </div>
 
     <!-- Graph Container -->
     <div id="graph-container" class="absolute top-0 left-0 w-full h-full hidden"></div>
 
-    <!-- Settings Panel -->
-    <aside id="settings-panel"
-      class="absolute top-0 left-0 h-full w-80 z-10 bg-gray-800/80 backdrop-blur-md shadow-2xl transform -translate-x-full transition-transform duration-300 flex flex-col">
-      <div class="p-4 border-b border-gray-700 flex items-center space-x-2">
-        <i data-lucide="settings" class="w-6 h-6 text-indigo-400"></i>
-        <h2 class="text-xl font-bold">Settings</h2>
-      </div>
-      <div class="flex-grow overflow-y-auto p-4 space-y-6">
-        <div>
-          <label class="block text-sm font-medium text-gray-300 mb-2">Force Engine</label>
-          <div class="flex space-x-2 rounded-lg bg-gray-700 p-1">
-            <button
-              class="engine-btn w-full text-center text-sm py-1.5 rounded-md transition-colors bg-indigo-600 text-white font-semibold shadow"
-              data-value="d3">D3</button>
-            <button class="engine-btn w-full text-center text-sm py-1.5 rounded-md transition-colors hover:bg-gray-600"
-              data-value="ngraph">NGraph</button>
-          </div>
-        </div>
-        <div>
-          <label class="block text-sm font-medium text-gray-300 mb-2">Dimensions</label>
-          <div class="flex space-x-2 rounded-lg bg-gray-700 p-1">
-            <button class="dim-btn w-full text-center text-sm py-1.5 rounded-md transition-colors hover:bg-gray-600"
-              data-value="2">2D</button>
-            <button
-              class="dim-btn w-full text-center text-sm py-1.5 rounded-md transition-colors bg-indigo-600 text-white font-semibold shadow"
-              data-value="3">3D</button>
-          </div>
-        </div>
-        <div>
-          <label class="block text-sm font-medium text-gray-300 mb-1">DAG Layout</label>
-          <select id="dag-mode"
-            class="w-full bg-gray-700 border-gray-600 text-white rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-sm p-2">
-            <option value="">Off</option>
-            <option value="td">Top-Down</option>
-            <option value="bu">Bottom-Up</option>
-            <option value="lr">Left-Right</option>
-            <option value="rl">Right-Left</option>
-            <option value="zout">Near-Far</option>
-            <option value="zin">Far-Near</option>
-            <option value="radialout">Radial Out</option>
-            <option value="radialin">Radial In</option>
-          </select>
-        </div>
-      </div>
-      <div class="p-4 border-t border-gray-700 space-y-3">
-        <div class="flex items-center space-x-3">
-          <button id="pause-btn"
-            class="w-full flex items-center justify-center space-x-2 bg-gray-600 hover:bg-gray-500 text-white font-bold py-2 px-4 rounded-lg transition-transform transform hover:scale-105">
-            <i data-lucide="pause" class="w-5 h-5"></i>
-            <span>Pause</span>
-          </button>
-          <button id="zoom-btn"
-            class="w-full flex items-center justify-center space-x-2 bg-gray-600 hover:bg-gray-500 text-white font-bold py-2 px-4 rounded-lg transition-transform transform hover:scale-105">
-            <i data-lucide="maximize" class="w-5 h-5"></i>
-            <span>Fit</span>
-          </button>
-        </div>
-      </div>
-    </aside>
+    <!-- Right Sidebar -->
+    <aside id="sidebar-panel"
+      class="absolute top-0 right-0 h-full w-80 z-30 bg-gray-900/95 backdrop-blur-xl shadow-2xl transform translate-x-full transition-transform duration-300 flex flex-col border-l border-gray-700">
 
-    <!-- Settings Toggle -->
-    <div id="settings-toggle" class="absolute top-1/2 -translate-y-1/2 left-0 z-20 transition-all duration-300 hidden">
-      <button class="p-2 bg-gray-800/80 backdrop-blur-md rounded-r-lg hover:bg-indigo-600 focus:outline-none">
-        <i data-lucide="settings" class="w-6 h-6"></i>
-      </button>
-    </div>
-
-    <!-- Info Panel -->
-    <aside id="info-panel"
-      class="absolute top-0 right-0 h-full w-80 z-10 bg-gray-800/80 backdrop-blur-md shadow-2xl transform translate-x-full transition-transform duration-300 flex flex-col">
-      <div class="flex justify-between items-center p-3 border-b border-gray-700 shrink-0">
-        <h3 id="info-title" class="text-lg font-bold text-indigo-300">Details</h3>
-        <button id="close-info-btn" class="p-1 rounded-full hover:bg-gray-700 transition-colors">
+      <!-- Sidebar Header -->
+      <div class="flex items-center justify-between p-4 border-b border-gray-700 shrink-0">
+        <h2 class="text-lg font-bold text-white">Controls</h2>
+        <button id="close-sidebar-btn"
+          class="p-1 rounded-full hover:bg-gray-700 transition-colors text-gray-400 hover:text-white">
           <i data-lucide="x" class="w-5 h-5"></i>
         </button>
       </div>
-      <div id="info-content" class="flex-grow p-3 overflow-y-auto">
-        <!-- Content injected by JS -->
+
+      <!-- Tabs -->
+      <div class="flex border-b border-gray-700 shrink-0">
+        <button
+          class="tab-btn flex-1 py-3 text-sm font-medium text-center text-indigo-400 border-b-2 border-indigo-400 bg-gray-800/50 transition-colors"
+          data-tab="filters">
+          Filters
+        </button>
+        <button
+          class="tab-btn flex-1 py-3 text-sm font-medium text-center text-gray-400 hover:text-gray-200 transition-colors"
+          data-tab="settings">
+          Settings
+        </button>
+      </div>
+
+      <!-- Content Area -->
+      <div class="flex-grow overflow-y-auto custom-scrollbar">
+
+        <!-- Filters Tab -->
+        <div id="tab-filters" class="p-4 space-y-6">
+          <!-- Search -->
+          <div class="relative">
+            <i data-lucide="search" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500"></i>
+            <input type="text" id="search-input"
+              class="w-full bg-gray-800 border border-gray-700 text-white text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block pl-10 p-2.5 placeholder-gray-500 transition-colors"
+              placeholder="Search nodes...">
+          </div>
+
+          <!-- Filter Sections -->
+          <div class="space-y-4">
+            <!-- Division Filter -->
+            <div class="filter-section">
+              <button
+                class="flex items-center justify-between w-full text-left text-sm font-semibold text-gray-300 mb-2 hover:text-white transition-colors"
+                onclick="this.nextElementSibling.classList.toggle('hidden'); this.querySelector('i').classList.toggle('rotate-180')">
+                <span>Division</span>
+                <i data-lucide="chevron-down" class="w-4 h-4 transition-transform duration-200"></i>
+              </button>
+              <div id="filter-division" class="space-y-1 pl-2"></div>
+            </div>
+
+            <!-- Circle Filter -->
+            <div class="filter-section">
+              <button
+                class="flex items-center justify-between w-full text-left text-sm font-semibold text-gray-300 mb-2 hover:text-white transition-colors"
+                onclick="this.nextElementSibling.classList.toggle('hidden'); this.querySelector('i').classList.toggle('rotate-180')">
+                <span>Circle</span>
+                <i data-lucide="chevron-down" class="w-4 h-4 transition-transform duration-200"></i>
+              </button>
+              <div id="filter-circle" class="space-y-1 pl-2 hidden"></div>
+            </div>
+
+            <!-- Zone Filter -->
+            <div class="filter-section">
+              <button
+                class="flex items-center justify-between w-full text-left text-sm font-semibold text-gray-300 mb-2 hover:text-white transition-colors"
+                onclick="this.nextElementSibling.classList.toggle('hidden'); this.querySelector('i').classList.toggle('rotate-180')">
+                <span>Zone</span>
+                <i data-lucide="chevron-down" class="w-4 h-4 transition-transform duration-200"></i>
+              </button>
+              <div id="filter-zone" class="space-y-1 pl-2 hidden"></div>
+            </div>
+
+            <!-- Edge Color Filter -->
+            <div class="filter-section">
+              <button
+                class="flex items-center justify-between w-full text-left text-sm font-semibold text-gray-300 mb-2 hover:text-white transition-colors"
+                onclick="this.nextElementSibling.classList.toggle('hidden'); this.querySelector('i').classList.toggle('rotate-180')">
+                <span>Edge Color</span>
+                <i data-lucide="chevron-down" class="w-4 h-4 transition-transform duration-200"></i>
+              </button>
+              <div id="filter-edge" class="space-y-1 pl-2 hidden"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Settings Tab -->
+        <div id="tab-settings" class="p-4 space-y-6 hidden">
+
+          <!-- Layout -->
+          <div>
+            <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Layout</label>
+            <select id="dag-mode"
+              class="w-full bg-gray-800 border border-gray-700 text-white rounded-lg focus:ring-indigo-500 focus:border-indigo-500 text-sm p-2.5 transition-colors">
+              <option value="">Standard Force</option>
+              <option value="td">Top-Down Tree</option>
+              <option value="bu">Bottom-Up Tree</option>
+              <option value="lr">Left-Right Tree</option>
+              <option value="rl">Right-Left Tree</option>
+              <option value="radialout">Radial Out</option>
+              <option value="radialin">Radial In</option>
+            </select>
+          </div>
+
+          <!-- Appearance -->
+          <div>
+            <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4">Appearance</label>
+
+            <div class="space-y-4">
+              <!-- Node Color By -->
+              <div>
+                <label class="block text-sm font-medium text-gray-400 mb-2">Node Color By</label>
+                <select id="node-color-by"
+                  class="w-full bg-gray-800 border border-gray-700 text-white rounded-lg focus:ring-indigo-500 focus:border-indigo-500 text-sm p-2.5 transition-colors">
+                  <option value="division">Division</option>
+                  <option value="circle">Circle</option>
+                  <option value="zone">Zone</option>
+                </select>
+              </div>
+
+              <!-- Fix Nodes Toggle -->
+              <div class="flex items-center justify-between">
+                <label class="text-sm font-medium text-gray-400">Fix Nodes on Drag</label>
+                <button id="fix-nodes-toggle"
+                  class="w-11 h-6 bg-gray-700 rounded-full relative transition-colors duration-200 focus:outline-none">
+                  <span
+                    class="absolute left-1 top-1 w-4 h-4 bg-white rounded-full transition-transform duration-200"></span>
+                </button>
+              </div>
+
+              <!-- Particle Speed -->
+              <div>
+                <label class="block text-sm font-medium text-gray-400 mb-2">Particle Speed (<span
+                    id="val-particle-speed">4</span>)</label>
+              </div>
+              <input type="range" id="particle-speed" min="0" max="10" step="1" value="4"
+                class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-indigo-500">
+            </div>
+          </div>
+        </div>
+
+        <!-- Controls -->
+        <div class="pt-4 border-t border-gray-700">
+          <div class="grid grid-cols-2 gap-3">
+            <button id="pause-btn"
+              class="flex items-center justify-center space-x-2 bg-gray-800 hover:bg-gray-700 text-white font-medium py-2 px-4 rounded-lg transition-colors border border-gray-700">
+              <i data-lucide="pause" class="w-4 h-4"></i>
+              <span>Pause</span>
+            </button>
+            <button id="zoom-btn"
+              class="flex items-center justify-center space-x-2 bg-gray-800 hover:bg-gray-700 text-white font-medium py-2 px-4 rounded-lg transition-colors border border-gray-700">
+              <i data-lucide="maximize" class="w-4 h-4"></i>
+              <span>Fit</span>
+            </button>
+          </div>
+        </div>
+      </div>
       </div>
     </aside>
+
+    <!-- Info Panel (Floating) -->
+    <div id="info-panel"
+      class="absolute bottom-4 left-4 w-80 bg-gray-900/95 backdrop-blur-md rounded-xl shadow-2xl border border-gray-700 transform translate-y-[120%] transition-transform duration-300 z-20 max-h-[60vh] flex flex-col">
+      <div class="flex justify-between items-center p-3 border-b border-gray-700 shrink-0">
+        <h3 id="info-title" class="text-sm font-bold text-indigo-400 uppercase tracking-wide">Details</h3>
+        <button id="close-info-btn" class="p-1 rounded-full hover:bg-gray-700 transition-colors text-gray-400">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+      </div>
+      <div id="info-content" class="flex-grow p-3 overflow-y-auto custom-scrollbar text-sm">
+        <!-- Content injected by JS -->
+      </div>
+    </div>
 
   </main>
 

@@ -1,0 +1,40 @@
+/* Custom scrollbar for Webkit */
+::-webkit-scrollbar {
+    width: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: rgba(31, 41, 55, 0.5);
+}
+
+::-webkit-scrollbar-thumb {
+    background: rgba(75, 85, 99, 0.8);
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: rgba(107, 114, 128, 1);
+}
+
+/* Glassmorphism utilities if needed */
+.glass {
+    background: rgba(31, 41, 55, 0.8);
+    backdrop-filter: blur(12px);
+}
+
+/* Transitions */
+.slide-in-left {
+    transform: translateX(0) !important;
+}
+
+.slide-out-left {
+    transform: translateX(-100%) !important;
+}
+
+.slide-in-right {
+    transform: translateX(0) !important;
+}
+
+.slide-out-right {
+    transform: translateX(100%) !important;
+}

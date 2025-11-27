@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>3D Force Graph Visualizer</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="//unpkg.com/3d-force-graph"></script>
+  <link rel="stylesheet" href="/static/css/style.css">
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+
+<body class="bg-gray-900 text-white overflow-hidden h-screen w-screen flex flex-col">
+
+  <!-- Header -->
+  <header class="bg-gray-800 border-b border-gray-700 p-4 flex justify-between items-center z-10 shrink-0">
+    <h1 class="text-xl font-bold text-indigo-400">3D Force Graph Visualizer</h1>
+    <button id="new-file-btn"
+      class="hidden px-4 py-2 bg-indigo-600 hover:bg-indigo-500 rounded text-sm font-medium transition-colors">
+      New File
+    </button>
+  </header>
+
+  <main class="flex-grow relative flex items-center justify-center">
+
+    <!-- File Upload Overlay -->
+    <div id="upload-container" class="w-full max-w-2xl text-center z-20">
+      <div id="drop-zone"
+        class="p-10 border-2 border-dashed border-gray-600 hover:border-indigo-500 hover:bg-gray-800/30 rounded-xl cursor-pointer transition-all duration-300">
+        <input type="file" id="file-input" class="hidden" accept=".json,.gexf">
+        <div class="flex flex-col items-center justify-center space-y-4">
+          <i data-lucide="upload" class="w-16 h-16 text-gray-500 transition-colors duration-300"></i>
+          <p class="text-lg font-semibold text-gray-300">
+            Drag & drop a file here or <span class="text-indigo-400">browse</span>
+          </p>
+          <p class="text-sm text-gray-500">Supports .json and .gexf files</p>
+        </div>
+      </div>
+      <div id="loading-indicator" class="hidden mt-6 text-lg">
+        <div class="flex items-center justify-center space-x-2">
+          <div class="w-4 h-4 rounded-full bg-indigo-400 animate-bounce" style="animation-delay: 0s"></div>
+          <div class="w-4 h-4 rounded-full bg-indigo-400 animate-bounce" style="animation-delay: 0.2s"></div>
+          <div class="w-4 h-4 rounded-full bg-indigo-400 animate-bounce" style="animation-delay: 0.4s"></div>
+        </div>
+        <p class="mt-4">Processing file...</p>
+      </div>
+      <p id="error-message" class="hidden mt-6 text-red-400 bg-red-900/50 p-3 rounded-lg"></p>
+    </div>
+
+    <!-- Graph Container -->
+    <div id="graph-container" class="absolute top-0 left-0 w-full h-full hidden"></div>
+
+    <!-- Settings Panel -->
+    <aside id="settings-panel"
+      class="absolute top-0 left-0 h-full w-80 z-10 bg-gray-800/80 backdrop-blur-md shadow-2xl transform -translate-x-full transition-transform duration-300 flex flex-col">
+      <div class="p-4 border-b border-gray-700 flex items-center space-x-2">
+        <i data-lucide="settings" class="w-6 h-6 text-indigo-400"></i>
+        <h2 class="text-xl font-bold">Settings</h2>
+      </div>
+      <div class="flex-grow overflow-y-auto p-4 space-y-6">
+        <div>
+          <label class="block text-sm font-medium text-gray-300 mb-2">Force Engine</label>
+          <div class="flex space-x-2 rounded-lg bg-gray-700 p-1">
+            <button
+              class="engine-btn w-full text-center text-sm py-1.5 rounded-md transition-colors bg-indigo-600 text-white font-semibold shadow"
+              data-value="d3">D3</button>
+            <button class="engine-btn w-full text-center text-sm py-1.5 rounded-md transition-colors hover:bg-gray-600"
+              data-value="ngraph">NGraph</button>
+          </div>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-300 mb-2">Dimensions</label>
+          <div class="flex space-x-2 rounded-lg bg-gray-700 p-1">
+            <button class="dim-btn w-full text-center text-sm py-1.5 rounded-md transition-colors hover:bg-gray-600"
+              data-value="2">2D</button>
+            <button
+              class="dim-btn w-full text-center text-sm py-1.5 rounded-md transition-colors bg-indigo-600 text-white font-semibold shadow"
+              data-value="3">3D</button>
+          </div>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-300 mb-1">DAG Layout</label>
+          <select id="dag-mode"
+            class="w-full bg-gray-700 border-gray-600 text-white rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-sm p-2">
+            <option value="">Off</option>
+            <option value="td">Top-Down</option>
+            <option value="bu">Bottom-Up</option>
+            <option value="lr">Left-Right</option>
+            <option value="rl">Right-Left</option>
+            <option value="zout">Near-Far</option>
+            <option value="zin">Far-Near</option>
+            <option value="radialout">Radial Out</option>
+            <option value="radialin">Radial In</option>
+          </select>
+        </div>
+      </div>
+      <div class="p-4 border-t border-gray-700 space-y-3">
+        <div class="flex items-center space-x-3">
+          <button id="pause-btn"
+            class="w-full flex items-center justify-center space-x-2 bg-gray-600 hover:bg-gray-500 text-white font-bold py-2 px-4 rounded-lg transition-transform transform hover:scale-105">
+            <i data-lucide="pause" class="w-5 h-5"></i>
+            <span>Pause</span>
+          </button>
+          <button id="zoom-btn"
+            class="w-full flex items-center justify-center space-x-2 bg-gray-600 hover:bg-gray-500 text-white font-bold py-2 px-4 rounded-lg transition-transform transform hover:scale-105">
+            <i data-lucide="maximize" class="w-5 h-5"></i>
+            <span>Fit</span>
+          </button>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Settings Toggle -->
+    <div id="settings-toggle" class="absolute top-1/2 -translate-y-1/2 left-0 z-20 transition-all duration-300 hidden">
+      <button class="p-2 bg-gray-800/80 backdrop-blur-md rounded-r-lg hover:bg-indigo-600 focus:outline-none">
+        <i data-lucide="settings" class="w-6 h-6"></i>
+      </button>
+    </div>
+
+    <!-- Info Panel -->
+    <aside id="info-panel"
+      class="absolute top-0 right-0 h-full w-80 z-10 bg-gray-800/80 backdrop-blur-md shadow-2xl transform translate-x-full transition-transform duration-300 flex flex-col">
+      <div class="flex justify-between items-center p-3 border-b border-gray-700 shrink-0">
+        <h3 id="info-title" class="text-lg font-bold text-indigo-300">Details</h3>
+        <button id="close-info-btn" class="p-1 rounded-full hover:bg-gray-700 transition-colors">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+      <div id="info-content" class="flex-grow p-3 overflow-y-auto">
+        <!-- Content injected by JS -->
+      </div>
+    </aside>
+
+  </main>
+
+  <script src="/static/js/main.js"></script>
+  <script>
+    lucide.createIcons();
+  </script>
+</body>
+
+</html>

@@ -19,6 +19,7 @@ let edgeLabelAttribute = 'assamtstr';
 let particleWidthAttribute = 'Assesment Amount';
 let nodeLabelSize = 12;
 let edgeLabelSize = 10;
+let SpriteText = null; // Global reference for 3D labels
 
 // DOM Elements
 const uploadContainer = document.getElementById('upload-container');
@@ -48,7 +49,6 @@ const filterContainers = {
 
 // Settings Elements
 const dagSelect = document.getElementById('dag-mode');
-const pauseBtn = document.getElementById('pause-btn');
 const zoomBtn = document.getElementById('zoom-btn');
 const dimBtns = document.querySelectorAll('.dim-btn');
 const particleSpeedSlider = document.getElementById('particle-speed');
@@ -63,6 +63,15 @@ const edgeLabelSelect = document.getElementById('edge-label-attr');
 const particleWidthSelect = document.getElementById('particle-width-attr');
 const nodeLabelSizeSlider = document.getElementById('node-label-size');
 const edgeLabelSizeSlider = document.getElementById('edge-label-size');
+const applyBtn = document.getElementById('apply-btn');
+const resetBtn = document.getElementById('reset-btn');
+
+// Floating Controls
+const zoomInBtn = document.getElementById('zoom-in-btn');
+const zoomOutBtn = document.getElementById('zoom-out-btn');
+const fitBtn = document.getElementById('fit-btn');
+const pauseBtn = document.getElementById('pause-btn');
+const fullscreenBtn = document.getElementById('fullscreen-btn');
 
 // Info Panel
 const infoPanel = document.getElementById('info-panel');
@@ -257,43 +266,132 @@ nodeLabelSelect.addEventListener('change', (e) => {
 
 edgeLabelSelect.addEventListener('change', (e) => {
     edgeLabelAttribute = e.target.value;
-    if (Graph) Graph.linkLabel(link => link[edgeLabelAttribute] || '');
+    updateGraphSettings();
 });
 
 particleWidthSelect.addEventListener('change', (e) => {
     particleWidthAttribute = e.target.value;
-    if (Graph && graphData) initGraph(graphData);
+    updateGraphSettings();
 });
 
 nodeLabelSizeSlider.addEventListener('input', (e) => {
     nodeLabelSize = parseInt(e.target.value);
     document.getElementById('val-node-label-size').textContent = nodeLabelSize;
-    if (Graph && currentMode === '2D') Graph.d3ReheatSimulation();
+    updateGraphSettings();
 });
 
 edgeLabelSizeSlider.addEventListener('input', (e) => {
     edgeLabelSize = parseInt(e.target.value);
     document.getElementById('val-edge-label-size').textContent = edgeLabelSize;
-    if (Graph && currentMode === '2D') Graph.d3ReheatSimulation();
+    updateGraphSettings();
 });
 
+applyBtn.addEventListener('click', () => {
+    if (graphData) {
+        // Force full re-init
+        Graph = null;
+        const graphContainer = document.getElementById('graph-container');
+        graphContainer.innerHTML = ''; // Clear container
+        initGraph(graphData);
+    }
+});
+
+resetBtn.addEventListener('click', () => {
+    resetSettings();
+});
+
+function resetSettings() {
+    // Reset State Variables
+    fixNodes = false;
+    hoverEnabled = true;
+    labelDensity = 0.7;
+    nodeSizeAttribute = 'amount';
+    edgeWidthAttribute = 'Assesment Amount';
+    nodeLabelAttribute = 'legal_name';
+    edgeLabelAttribute = 'assamtstr';
+    particleWidthAttribute = 'Assesment Amount';
+    nodeLabelSize = 12;
+    edgeLabelSize = 10;
+
+    // Reset UI Elements
+    document.getElementById('fix-nodes-toggle').checked = false;
+    document.getElementById('hover-toggle').checked = true;
+
+    document.getElementById('label-density').value = 0.7;
+    document.getElementById('val-label-density').textContent = '0.7';
+
+    document.getElementById('node-size-attr').value = 'amount';
+    document.getElementById('edge-width-attr').value = 'Assesment Amount';
+    document.getElementById('node-label-attr').value = 'legal_name';
+    document.getElementById('edge-label-attr').value = 'assamtstr';
+    document.getElementById('particle-width-attr').value = 'Assesment Amount';
+
+    document.getElementById('particle-speed').value = 4;
+    document.getElementById('val-particle-speed').textContent = '4';
+
+    document.getElementById('node-label-size').value = 12;
+    document.getElementById('val-node-label-size').textContent = '12';
+
+    document.getElementById('edge-label-size').value = 10;
+    document.getElementById('val-edge-label-size').textContent = '10';
+
+    // Apply Changes
+    updateGraphSettings();
+}
+
 // Controls
+zoomInBtn.addEventListener('click', () => {
+    if (!Graph) return;
+    if (currentMode === '2D') {
+        Graph.zoom(Graph.zoom() * 1.2, 400);
+    } else {
+        const pos = Graph.cameraPosition();
+        Graph.cameraPosition({ x: pos.x * 0.8, y: pos.y * 0.8, z: pos.z * 0.8 }, pos.lookAt, 400);
+    }
+});
+
+zoomOutBtn.addEventListener('click', () => {
+    if (!Graph) return;
+    if (currentMode === '2D') {
+        Graph.zoom(Graph.zoom() / 1.2, 400);
+    } else {
+        const pos = Graph.cameraPosition();
+        Graph.cameraPosition({ x: pos.x * 1.2, y: pos.y * 1.2, z: pos.z * 1.2 }, pos.lookAt, 400);
+    }
+});
+
+fullscreenBtn.addEventListener('click', () => {
+    if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen();
+    } else {
+        if (document.exitFullscreen) {
+            document.exitFullscreen();
+        }
+    }
+});
+
 pauseBtn.addEventListener('click', () => {
     if (Graph) {
-        const isPaused = pauseBtn.querySelector('span').textContent === 'Resume';
         if (isPaused) {
-            Graph.resumeAnimation();
-            pauseBtn.innerHTML = '<i data-lucide="pause" class="w-4 h-4"></i><span>Pause</span>';
+            if (currentMode === '2D') Graph.d3ReheatSimulation();
+            else Graph.resumeAnimation();
+            pauseBtn.innerHTML = '<i data-lucide="pause" class="w-5 h-5"></i>';
+            pauseBtn.title = "Pause Simulation";
         } else {
-            Graph.pauseAnimation();
-            pauseBtn.innerHTML = '<i data-lucide="play" class="w-4 h-4"></i><span>Resume</span>';
+            if (currentMode === '2D') Graph.d3StopSimulation();
+            else Graph.pauseAnimation();
+            pauseBtn.innerHTML = '<i data-lucide="play" class="w-5 h-5"></i>';
+            pauseBtn.title = "Resume Simulation";
         }
+        isPaused = !isPaused;
         lucide.createIcons();
     }
 });
 
-zoomBtn.addEventListener('click', () => {
-    if (Graph) Graph.zoomToFit(400);
+fitBtn.addEventListener('click', () => {
+    if (Graph) {
+        Graph.zoomToFit(400);
+    }
 });
 
 // 2D/3D Toggle
@@ -474,7 +572,85 @@ function scaleValue(value, minVal, maxVal, minSize, maxSize) {
     return minSize + ((val - minVal) / (maxVal - minVal)) * (maxSize - minSize);
 }
 
-function initGraph(data) {
+async function initGraph(data) {
+    if (currentMode === '3D' && !SpriteText) {
+        try {
+            const module = await import('https://esm.sh/three-spritetext');
+            SpriteText = module.default;
+        } catch (e) {
+            console.error("Failed to load SpriteText", e);
+        }
+    }
+
+    const graphContainer = document.getElementById('graph-container');
+    const GraphConstructor = currentMode === '2D' ? ForceGraph : ForceGraph3D;
+
+    // Only create new instance if needed
+    if (!Graph || Graph.constructor.name !== (currentMode === '2D' ? 'ForceGraph' : 'ForceGraph3D')) {
+        if (Graph) Graph._destructor(); // Cleanup previous instance if it exists
+        graphContainer.innerHTML = ''; // Clear previous graph
+        Graph = GraphConstructor()(graphContainer)
+            .width(graphContainer.offsetWidth)
+            .height(graphContainer.offsetHeight)
+            .backgroundColor(BACKGROUND_COLOR);
+    }
+
+    Graph.graphData(data);
+
+    // Apply all settings
+    updateGraphSettings();
+
+    // Event handlers that don't need frequent updates
+    Graph
+        .onNodeClick(handleNodeClick)
+        .onLinkClick(handleLinkClick)
+        .onBackgroundClick(resetHighlight)
+        .onNodeHover(node => {
+            if (isSelectionActive || !hoverEnabled) return; // Disable hover when selection is active OR hover disabled
+            hoverNode = node || null;
+            updateHighlight();
+            graphContainer.style.cursor = node ? 'pointer' : null;
+            if (node) {
+                showInfo(node, 'Node Details');
+            } else if (!hoverLink) {
+                closeInfo();
+            }
+        })
+        .onLinkHover(link => {
+            if (isSelectionActive || !hoverEnabled) return; // Disable hover when selection is active OR hover disabled
+            hoverLink = link || null;
+            updateHighlight();
+            graphContainer.style.cursor = link ? 'pointer' : null;
+            if (link) {
+                showInfo(link, 'Link Details');
+            } else if (!hoverNode) {
+                closeInfo();
+            }
+        })
+        .onNodeDragEnd(node => {
+            if (fixNodes) {
+                node.fx = node.x;
+                node.fy = node.y;
+                if (currentMode === '3D') node.fz = node.z;
+            } else {
+                node.fx = null;
+                node.fy = null;
+                if (currentMode === '3D') node.fz = null;
+            }
+        });
+
+    // Resize handler
+    window.addEventListener('resize', () => {
+        Graph.width(graphContainer.offsetWidth);
+        Graph.height(graphContainer.offsetHeight);
+    });
+}
+
+function updateGraphSettings() {
+    if (!Graph || !graphData) return;
+
+    const data = graphData; // Use global data
+
     // Calculate ranges for scaling
     // Nodes
     const nodeValues = data.nodes.map(n => parseFloat(n[nodeSizeAttribute])).filter(v => !isNaN(v));
@@ -503,14 +679,8 @@ function initGraph(data) {
     const edgeColorMap = {};
     edgeColors.forEach((c, i) => edgeColorMap[c] = edgeColorPalette[i]);
 
-    const GraphConstructor = currentMode === '2D' ? ForceGraph : ForceGraph3D;
-
-    Graph = GraphConstructor()
-        (graphContainer)
-        .width(graphContainer.offsetWidth)
-        .height(graphContainer.offsetHeight)
-        .backgroundColor(BACKGROUND_COLOR) // Consistent background
-        .graphData(data)
+    // Apply settings
+    Graph
         .nodeLabel(node => node[nodeLabelAttribute] || node.id) // Tooltip
         .linkLabel(link => link[edgeLabelAttribute] || '') // Tooltip
         .nodeColor(node => {
@@ -551,48 +721,55 @@ function initGraph(data) {
             return scaleValue(link[particleWidthAttribute], minParticleVal, maxParticleVal, MIN_PARTICLE_WIDTH, MAX_PARTICLE_WIDTH);
         })
         .linkDirectionalParticleSpeed(parseFloat(particleSpeedSlider.value) * 0.0005) // Reduced speed multiplier
-        .linkHoverPrecision(5) // Increased precision
-        .onNodeClick(handleNodeClick)
-        .onLinkClick(handleLinkClick)
-        .onBackgroundClick(resetHighlight)
-        .onNodeHover(node => {
-            if (isSelectionActive || !hoverEnabled) return; // Disable hover when selection is active OR hover disabled
+        .linkHoverPrecision(5); // Increased precision
 
-            hoverNode = node || null;
-            graphContainer.style.cursor = node ? 'pointer' : null;
+    if (currentMode === '3D' && SpriteText) {
+        Graph.nodeThreeObject(node => {
+            // Visibility Logic
+            const showLabel = (isSelectionActive && highlightedNodes.has(node.id)) ||
+                (!isSelectionActive && checkLabelDensity(node.id));
 
-            if (node) {
-                showInfo(node, 'Node Details');
-            } else if (!hoverLink) {
-                closeInfo();
-            }
+            if (!showLabel) return null;
+
+            const label = node[nodeLabelAttribute] || node.id;
+            const sprite = new SpriteText(label);
+            sprite.material.depthWrite = false;
+            sprite.color = (highlightedNodes.size > 0 && !highlightedNodes.has(node.id)) ? 'rgba(100, 100, 100, 0.2)' : '#ffffff';
+            sprite.textHeight = nodeLabelSize;
+            sprite.center.y = -0.6; // Shift above node (radius is ~4-10, textHeight ~12. 0.5 is center. -0.5 is top edge?)
+            // Actually center.y = 0 is center. 0.5 is bottom, -0.5 is top.
+            // Let's try shifting it up by radius + padding.
+            // But SpriteText positioning is relative to the node center.
+            // We can just set a fixed offset or rely on center.y
+
+            return sprite;
         })
-        .onLinkHover(link => {
-            if (isSelectionActive || !hoverEnabled) return; // Disable hover when selection is active OR hover disabled
+            .nodeThreeObjectExtend(true)
+            .linkThreeObject(link => {
+                // Visibility Logic
+                const showLabel = (isSelectionActive && highlightedLinks.has(getLinkId(link))) ||
+                    (!isSelectionActive && checkLabelDensity(getLinkId(link)));
 
-            hoverLink = link || null;
-            graphContainer.style.cursor = link ? 'pointer' : null;
+                if (!showLabel) return null;
 
-            if (link) {
-                showInfo(link, 'Link Details');
-            } else if (!hoverNode) {
-                closeInfo();
-            }
-        })
-        .onNodeDragEnd(node => {
-            if (fixNodes) {
-                node.fx = node.x;
-                node.fy = node.y;
-                if (currentMode === '3D') node.fz = node.z;
-            } else {
-                node.fx = null;
-                node.fy = null;
-                if (currentMode === '3D') node.fz = null;
-            }
-        });
+                const label = link[edgeLabelAttribute] || '';
+                if (!label) return null;
 
-    // 2D Specific: Render Labels
-    if (currentMode === '2D') {
+                const sprite = new SpriteText(label);
+                sprite.material.depthWrite = false;
+                sprite.color = 'rgba(200, 200, 200, 0.8)';
+                sprite.textHeight = edgeLabelSize;
+                return sprite;
+            })
+            .linkThreeObjectExtend(true)
+            .linkPositionUpdate((sprite, { start, end }) => {
+                if (!sprite) return;
+                const middlePos = Object.assign(...['x', 'y', 'z'].map(c => ({
+                    [c]: start[c] + (end[c] - start[c]) / 2 // calc middle point
+                })));
+                Object.assign(sprite.position, middlePos);
+            });
+    } else if (currentMode === '2D') { // 2D Specific: Render Labels
         Graph.nodeCanvasObject((node, ctx, globalScale) => {
             const label = node[nodeLabelAttribute] || node.id;
             const fontSize = nodeLabelSize / globalScale;

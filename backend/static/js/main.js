@@ -5,7 +5,8 @@ let highlightedNodes = new Set();
 let highlightedLinks = new Set();
 let hoverNode = null;
 let hoverLink = null;
-let currentMode = '3D'; // '2D' or '3D'
+let isSelectionActive = false;
+let currentMode = '2D'; // '2D' or '3D'
 let activeFilter = { type: null, value: null }; // { type: 'division'|'circle'|'zone'|'edge', value: '...' }
 let fixNodes = false;
 let nodeColorAttribute = 'division';
@@ -54,6 +55,7 @@ const closeInfoBtn = document.getElementById('close-info-btn');
 // Constants
 const NODE_R = 4;
 const BACKGROUND_COLOR = '#000011'; // Dark background for consistency
+const LABEL_DENSITY = 0.1; // Control label density (0.0 - 1.0)
 
 // --- Event Listeners ---
 
@@ -420,16 +422,11 @@ function initGraph(data) {
         .height(graphContainer.offsetHeight)
         .backgroundColor(BACKGROUND_COLOR) // Consistent background
         .graphData(data)
-        .nodeLabel(node => node.legal_name || node.name || node.id) // Prefer legal_name
-        .linkLabel(link => link.assamtstr || link.label || '') // Prefer assamtstr
+        .nodeLabel(node => node.legal_name || node.name || node.id) // Tooltip
+        .linkLabel(link => link.assamtstr || link.label || '') // Tooltip
         .nodeColor(node => {
             if (highlightedNodes.size > 0 && !highlightedNodes.has(node.id)) return 'rgba(100, 100, 100, 0.2)'; // Increased visibility
-            if (hoverNode && hoverNode !== node && !highlightedNodes.has(node.id)) return 'rgba(100, 100, 100, 0.2)'; // Dim on hover
-            if (hoverLink) {
-                const sourceId = typeof hoverLink.source === 'object' ? hoverLink.source.id : hoverLink.source;
-                const targetId = typeof hoverLink.target === 'object' ? hoverLink.target.id : hoverLink.target;
-                if (node.id !== sourceId && node.id !== targetId) return 'rgba(100, 100, 100, 0.2)';
-            }
+            // if (hoverNode && hoverNode !== node && !highlightedNodes.has(node.id)) return 'rgba(100, 100, 100, 0.2)'; // Dim on hover - REMOVED per request
             return colorMap[node[nodeColorAttribute]] || '#9ca3af';
         })
         .nodeVal(node => {
@@ -451,12 +448,7 @@ function initGraph(data) {
             if (highlightedNodes.size > 0 || highlightedLinks.size > 0) {
                 return highlightedLinks.has(getLinkId(link)) ? color : 'rgba(100,100,100,0.15)'; // Increased visibility
             }
-            if (hoverNode) {
-                // If hovering a node, dim links not connected to it
-                const sourceId = typeof link.source === 'object' ? link.source.id : link.source;
-                const targetId = typeof link.target === 'object' ? link.target.id : link.target;
-                if (sourceId !== hoverNode.id && targetId !== hoverNode.id) return 'rgba(100,100,100,0.15)';
-            }
+            // Hover dimming removed per request
             return color;
         })
         .linkDirectionalArrowLength(3.5)
@@ -477,14 +469,28 @@ function initGraph(data) {
         .onLinkClick(handleLinkClick)
         .onBackgroundClick(resetHighlight)
         .onNodeHover(node => {
+            if (isSelectionActive) return; // Disable hover when selection is active
+
             hoverNode = node || null;
-            updateHighlight();
             graphContainer.style.cursor = node ? 'pointer' : null;
+
+            if (node) {
+                showInfo(node, 'Node Details');
+            } else if (!hoverLink) {
+                closeInfo();
+            }
         })
         .onLinkHover(link => {
+            if (isSelectionActive) return; // Disable hover when selection is active
+
             hoverLink = link || null;
-            updateHighlight();
             graphContainer.style.cursor = link ? 'pointer' : null;
+
+            if (link) {
+                showInfo(link, 'Link Details');
+            } else if (!hoverNode) {
+                closeInfo();
+            }
         })
         .onNodeDragEnd(node => {
             if (fixNodes) {
@@ -497,6 +503,86 @@ function initGraph(data) {
                 if (currentMode === '3D') node.fz = null;
             }
         });
+
+    // 2D Specific: Render Labels
+    if (currentMode === '2D') {
+        Graph.nodeCanvasObject((node, ctx, globalScale) => {
+            const label = node.legal_name || node.name || node.id;
+            const fontSize = 12 / globalScale;
+
+            // Draw Node
+            const radius = scaleValue(node.amount, minNodeAmt, maxNodeAmt, 2, 10);
+
+            ctx.beginPath();
+            ctx.arc(node.x, node.y, radius, 0, 2 * Math.PI, false);
+            ctx.fillStyle = (highlightedNodes.size > 0 && !highlightedNodes.has(node.id)) ? 'rgba(100, 100, 100, 0.2)' : (colorMap[node[nodeColorAttribute]] || '#9ca3af');
+            ctx.fill();
+
+            // Draw Label
+            // Show if selection is active AND node is highlighted, OR if no selection and zoomed in (filtered by density)
+            const showLabel = (isSelectionActive && highlightedNodes.has(node.id)) ||
+                (!isSelectionActive && globalScale >= 1.5 && checkLabelDensity(node.id));
+
+            if (showLabel) {
+                ctx.font = `${fontSize}px Sans-Serif`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+                ctx.fillText(label, node.x, node.y + radius + fontSize, 200);
+            }
+        })
+            .linkCanvasObjectMode(() => 'after')
+            .linkCanvasObject((link, ctx, globalScale) => {
+                const label = link.assamtstr || link.label || '';
+                if (!label) return;
+
+                // Show if selection is active AND link is highlighted, OR if no selection and zoomed in (filtered by density)
+                const showLabel = (isSelectionActive && highlightedLinks.has(getLinkId(link))) ||
+                    (!isSelectionActive && globalScale >= 1.5 && checkLabelDensity(getLinkId(link)));
+
+                if (showLabel) {
+                    const fontSize = 10 / globalScale;
+                    ctx.font = `${fontSize}px Sans-Serif`;
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillStyle = 'rgba(200, 200, 200, 0.8)';
+
+                    // Calculate position
+                    const start = link.source;
+                    const end = link.target;
+
+                    if (typeof start !== 'object' || typeof end !== 'object') return; // Safety check
+
+                    let x, y;
+                    if (link.curvature) {
+                        // Calculate midpoint of quadratic bezier
+                        // Control point is roughly: mid + normal * curvature * dist
+                        const dx = end.x - start.x;
+                        const dy = end.y - start.y;
+                        const dist = Math.sqrt(dx * dx + dy * dy);
+                        const midX = (start.x + end.x) / 2;
+                        const midY = (start.y + end.y) / 2;
+
+                        // Normal vector (-dy, dx)
+                        const nx = -dy / dist;
+                        const ny = dx / dist;
+
+                        // Peak of curve (t=0.5) is at mid + 0.5 * offset
+                        // The force-graph curvature offset is applied to the control point
+                        // Control point = mid + curvature * dist * normal
+                        // Bezier peak = mid + 0.5 * (control - mid) = mid + 0.5 * curvature * dist * normal
+                        const offset = 0.5 * link.curvature * dist;
+                        x = midX + nx * offset;
+                        y = midY + ny * offset;
+                    } else {
+                        x = (start.x + end.x) / 2;
+                        y = (start.y + end.y) / 2;
+                    }
+
+                    ctx.fillText(label, x, y);
+                }
+            });
+    }
 
     // Resize handler
     window.addEventListener('resize', () => {
@@ -512,6 +598,7 @@ function getLinkId(link) {
 }
 
 function handleNodeClick(node) {
+    isSelectionActive = true; // Activate selection mode
     showInfo(node, 'Node Details');
     zoomToNode(node);
 
@@ -533,6 +620,7 @@ function handleNodeClick(node) {
 }
 
 function handleLinkClick(link) {
+    isSelectionActive = true; // Activate selection mode
     showInfo(link, 'Link Details');
 
     highlightedNodes.clear();
@@ -563,6 +651,7 @@ function zoomToNode(node) {
 }
 
 function resetHighlight() {
+    isSelectionActive = false; // Deactivate selection mode
     highlightedNodes.clear();
     highlightedLinks.clear();
     activeFilter = { type: null, value: null };
@@ -696,4 +785,15 @@ function generateColors(count) {
     const res = [];
     for (let i = 0; i < count; i++) res.push(colors[i % colors.length]);
     return res;
+}
+
+function checkLabelDensity(id) {
+    if (LABEL_DENSITY >= 1) return true;
+    let hash = 0;
+    const str = String(id);
+    for (let i = 0; i < str.length; i++) {
+        hash = ((hash << 5) - hash) + str.charCodeAt(i);
+        hash |= 0;
+    }
+    return ((Math.abs(hash) % 100) / 100) < LABEL_DENSITY;
 }

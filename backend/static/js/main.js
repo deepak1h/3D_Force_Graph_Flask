@@ -275,13 +275,6 @@ nodeSizeSelect.addEventListener('change', (e) => {
 
 edgeWidthSelect.addEventListener('change', (e) => {
     edgeWidthAttribute = e.target.value;
-    // Toggle visibility of 3D settings
-    if (currentMode === '3D') {
-        settings3dContainer.classList.remove('hidden');
-    } else {
-        settings3dContainer.classList.add('hidden');
-    }
-
     if (Graph && graphData) initGraph(graphData);
 });
 
@@ -541,6 +534,14 @@ async function handleFile(file) {
 
 function switchGraphMode(mode) {
     currentMode = mode;
+
+    // Toggle visibility of 3D settings
+    if (currentMode === '3D') {
+        settings3dContainer.classList.remove('hidden');
+    } else {
+        settings3dContainer.classList.add('hidden');
+    }
+
     if (Graph) {
         Graph._destructor(); // Cleanup
         graphContainer.innerHTML = ''; // Ensure container is empty

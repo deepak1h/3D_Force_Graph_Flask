@@ -178,38 +178,152 @@
             </select>
           </div>
 
-          <!-- Appearance -->
-          <div>
-            <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4">Appearance</label>
+          <!-- Advanced Settings -->
+          <div class="space-y-4">
 
-            <div class="space-y-4">
-              <!-- Node Color By -->
-              <div>
-                <label class="block text-sm font-medium text-gray-400 mb-2">Node Color By</label>
-                <select id="node-color-by"
-                  class="w-full bg-gray-800 border border-gray-700 text-white rounded-lg focus:ring-indigo-500 focus:border-indigo-500 text-sm p-2.5 transition-colors">
-                  <option value="division">Division</option>
-                  <option value="circle">Circle</option>
-                  <option value="zone">Zone</option>
-                </select>
-              </div>
+            <!-- Hover Toggle -->
+            <div class="flex items-center justify-between">
+              <label class="text-sm font-medium text-gray-400">Enable Hover Effects</label>
+              <button id="hover-toggle"
+                class="w-11 h-6 bg-indigo-600 rounded-full relative transition-colors duration-200 focus:outline-none">
+                <span
+                  class="absolute left-1 top-1 w-4 h-4 bg-white rounded-full transition-transform duration-200 translate-x-5"></span>
+              </button>
+            </div>
 
-              <!-- Fix Nodes Toggle -->
-              <div class="flex items-center justify-between">
-                <label class="text-sm font-medium text-gray-400">Fix Nodes on Drag</label>
-                <button id="fix-nodes-toggle"
-                  class="w-11 h-6 bg-gray-700 rounded-full relative transition-colors duration-200 focus:outline-none">
-                  <span
-                    class="absolute left-1 top-1 w-4 h-4 bg-white rounded-full transition-transform duration-200"></span>
-                </button>
-              </div>
+            <!-- Label Density -->
+            <div>
+              <label class="block text-sm font-medium text-gray-400 mb-2">Label Density (<span
+                  id="val-label-density">0.1</span>)</label>
+              <input type="range" id="label-density" min="0" max="1" step="0.1" value="0.1"
+                class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-indigo-500">
+            </div>
 
-              <!-- Particle Speed -->
-              <div>
-                <label class="block text-sm font-medium text-gray-400 mb-2">Particle Speed (<span
-                    id="val-particle-speed">4</span>)</label>
-              </div>
+            <!-- Node Size Attribute -->
+            <div>
+              <label class="block text-sm font-medium text-gray-400 mb-2">Node Size By</label>
+              <select id="node-size-attr"
+                class="w-full bg-gray-800 border border-gray-700 text-white rounded-lg focus:ring-indigo-500 focus:border-indigo-500 text-sm p-2.5 transition-colors">
+                <option value="amount" selected>Amount</option>
+                <option value="amount_in">Amount In</option>
+                <option value="amount_out">Amount Out</option>
+                <option value="degree">Degree</option>
+              </select>
+            </div>
+
+            <!-- Edge Thickness Attribute -->
+            <div>
+              <label class="block text-sm font-medium text-gray-400 mb-2">Edge Thickness By</label>
+              <select id="edge-width-attr"
+                class="w-full bg-gray-800 border border-gray-700 text-white rounded-lg focus:ring-indigo-500 focus:border-indigo-500 text-sm p-2.5 transition-colors">
+                <option value="Assesment Amount" selected>Assesment Amount</option>
+                <option value="cgst_tax">CGST Tax</option>
+                <option value="sgst_tax">SGST Tax</option>
+                <option value="ewb_count">EWB Count</option>
+                <option value="igst_tax">IGST Tax</option>
+                <option value="cess">CESS</option>
+                <option value="trn_count">TRN Count</option>
+              </select>
+            </div>
+
+            <!-- Node Label Attribute -->
+            <div>
+              <label class="block text-sm font-medium text-gray-400 mb-2">Node Label</label>
+              <select id="node-label-attr"
+                class="w-full bg-gray-800 border border-gray-700 text-white rounded-lg focus:ring-indigo-500 focus:border-indigo-500 text-sm p-2.5 transition-colors">
+                <option value="legal_name" selected>Legal Name</option>
+                <option value="name">Name</option>
+                <option value="amountstr">Amount Str</option>
+                <option value="circle">Circle</option>
+                <option value="community">Community</option>
+                <option value="degree">Degree</option>
+                <option value="division">Division</option>
+                <option value="email">Email</option>
+                <option value="gstin">GSTIN</option>
+                <option value="hsn_2d">HSN 2D</option>
+                <option value="hsn_4d">HSN 4D</option>
+                <option value="mobile">Mobile</option>
+                <option value="registration_date">Registration Date</option>
+                <option value="trade_name">Trade Name</option>
+                <option value="zone">Zone</option>
+              </select>
+            </div>
+
+            <!-- Edge Label Attribute -->
+            <div>
+              <label class="block text-sm font-medium text-gray-400 mb-2">Edge Label</label>
+              <select id="edge-label-attr"
+                class="w-full bg-gray-800 border border-gray-700 text-white rounded-lg focus:ring-indigo-500 focus:border-indigo-500 text-sm p-2.5 transition-colors">
+                <option value="assamtstr" selected>Assesment Amount Str</option>
+                <option value="Assesment Amount">Assesment Amount</option>
+                <option value="cess_tax">CESS Tax</option>
+                <option value="cgst_tax">CGST Tax</option>
+                <option value="depth">Depth</option>
+                <option value="ewb_count">EWB Count</option>
+                <option value="igst_tax">IGST Tax</option>
+                <option value="sgst_tax">SGST Tax</option>
+                <option value="trn_count">TRN Count</option>
+              </select>
+            </div>
+
+            <!-- Node Color By -->
+            <div>
+              <label class="block text-sm font-medium text-gray-400 mb-2">Node Color By</label>
+              <select id="node-color-by"
+                class="w-full bg-gray-800 border border-gray-700 text-white rounded-lg focus:ring-indigo-500 focus:border-indigo-500 text-sm p-2.5 transition-colors">
+                <option value="division">Division</option>
+                <option value="circle">Circle</option>
+                <option value="zone">Zone</option>
+              </select>
+            </div>
+
+            <!-- Fix Nodes Toggle -->
+            <div class="flex items-center justify-between">
+              <label class="text-sm font-medium text-gray-400">Fix Nodes on Drag</label>
+              <button id="fix-nodes-toggle"
+                class="w-11 h-6 bg-gray-700 rounded-full relative transition-colors duration-200 focus:outline-none">
+                <span
+                  class="absolute left-1 top-1 w-4 h-4 bg-white rounded-full transition-transform duration-200"></span>
+              </button>
+            </div>
+
+            <!-- Particle Size Attribute -->
+            <div>
+              <label class="block text-sm font-medium text-gray-400 mb-2">Particle Size By</label>
+              <select id="particle-width-attr"
+                class="w-full bg-gray-800 border border-gray-700 text-white rounded-lg focus:ring-indigo-500 focus:border-indigo-500 text-sm p-2.5 transition-colors">
+                <option value="Assesment Amount" selected>Assesment Amount</option>
+                <option value="cess_tax">CESS Tax</option>
+                <option value="cgst_tax">CGST Tax</option>
+                <option value="depth">Depth</option>
+                <option value="ewb_count">EWB Count</option>
+                <option value="igst_tax">IGST Tax</option>
+                <option value="sgst_tax">SGST Tax</option>
+                <option value="trn_count">TRN Count</option>
+              </select>
+            </div>
+
+            <!-- Particle Speed -->
+            <div>
+              <label class="block text-sm font-medium text-gray-400 mb-2">Particle Speed (<span
+                  id="val-particle-speed">4</span>)</label>
               <input type="range" id="particle-speed" min="0" max="10" step="1" value="4"
+                class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-indigo-500">
+            </div>
+
+            <!-- Node Label Size -->
+            <div>
+              <label class="block text-sm font-medium text-gray-400 mb-2">Node Label Size (<span
+                  id="val-node-label-size">12</span>px)</label>
+              <input type="range" id="node-label-size" min="8" max="24" step="1" value="12"
+                class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-indigo-500">
+            </div>
+
+            <!-- Edge Label Size -->
+            <div>
+              <label class="block text-sm font-medium text-gray-400 mb-2">Edge Label Size (<span
+                  id="val-edge-label-size">10</span>px)</label>
+              <input type="range" id="edge-label-size" min="8" max="24" step="1" value="10"
                 class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-indigo-500">
             </div>
           </div>

@@ -6,10 +6,19 @@ let highlightedLinks = new Set();
 let hoverNode = null;
 let hoverLink = null;
 let isSelectionActive = false;
-let currentMode = '2D'; // '2D' or '3D'
+let currentMode = '3D'; // '2D' or '3D'
 let activeFilter = { type: null, value: null }; // { type: 'division'|'circle'|'zone'|'edge', value: '...' }
 let fixNodes = false;
 let nodeColorAttribute = 'division';
+let hoverEnabled = true;
+let labelDensity = 0.1;
+let nodeSizeAttribute = 'amount';
+let edgeWidthAttribute = 'Assesment Amount';
+let nodeLabelAttribute = 'legal_name';
+let edgeLabelAttribute = 'assamtstr';
+let particleWidthAttribute = 'Assesment Amount';
+let nodeLabelSize = 12;
+let edgeLabelSize = 10;
 
 // DOM Elements
 const uploadContainer = document.getElementById('upload-container');
@@ -45,6 +54,15 @@ const dimBtns = document.querySelectorAll('.dim-btn');
 const particleSpeedSlider = document.getElementById('particle-speed');
 const nodeColorSelect = document.getElementById('node-color-by');
 const fixNodesToggle = document.getElementById('fix-nodes-toggle');
+const hoverToggle = document.getElementById('hover-toggle');
+const labelDensitySlider = document.getElementById('label-density');
+const nodeSizeSelect = document.getElementById('node-size-attr');
+const edgeWidthSelect = document.getElementById('edge-width-attr');
+const nodeLabelSelect = document.getElementById('node-label-attr');
+const edgeLabelSelect = document.getElementById('edge-label-attr');
+const particleWidthSelect = document.getElementById('particle-width-attr');
+const nodeLabelSizeSlider = document.getElementById('node-label-size');
+const edgeLabelSizeSlider = document.getElementById('edge-label-size');
 
 // Info Panel
 const infoPanel = document.getElementById('info-panel');
@@ -53,9 +71,14 @@ const infoTitle = document.getElementById('info-title');
 const closeInfoBtn = document.getElementById('close-info-btn');
 
 // Constants
-const NODE_R = 4;
+const MIN_NODE_SIZE = 2;
+const MAX_NODE_SIZE = 10;
+const MIN_EDGE_WIDTH = 1;
+const MAX_EDGE_WIDTH = 5;
+const MIN_PARTICLE_WIDTH = 1;
+const MAX_PARTICLE_WIDTH = 4;
 const BACKGROUND_COLOR = '#000011'; // Dark background for consistency
-const LABEL_DENSITY = 0.1; // Control label density (0.0 - 1.0)
+// const LABEL_DENSITY = 0.1; // Removed constant, now using state variable
 
 // --- Event Listeners ---
 
@@ -191,6 +214,67 @@ fixNodesToggle.addEventListener('click', () => {
         fixNodesToggle.classList.add('bg-gray-700');
         span.classList.remove('translate-x-5');
     }
+});
+
+hoverToggle.addEventListener('click', () => {
+    hoverEnabled = !hoverEnabled;
+    const span = hoverToggle.querySelector('span');
+    if (hoverEnabled) {
+        hoverToggle.classList.add('bg-indigo-600');
+        hoverToggle.classList.remove('bg-gray-700');
+        span.classList.add('translate-x-5');
+    } else {
+        hoverToggle.classList.remove('bg-indigo-600');
+        hoverToggle.classList.add('bg-gray-700');
+        span.classList.remove('translate-x-5');
+    }
+});
+
+labelDensitySlider.addEventListener('input', (e) => {
+    labelDensity = parseFloat(e.target.value);
+    document.getElementById('val-label-density').textContent = labelDensity;
+    // Force re-render for 2D labels (might need a better way to trigger canvas update)
+    if (Graph && currentMode === '2D') {
+        // A slight hack to trigger update without full re-init
+        Graph.d3ReheatSimulation();
+    }
+});
+
+nodeSizeSelect.addEventListener('change', (e) => {
+    nodeSizeAttribute = e.target.value;
+    if (Graph && graphData) initGraph(graphData); // Re-init to recalc ranges
+});
+
+edgeWidthSelect.addEventListener('change', (e) => {
+    edgeWidthAttribute = e.target.value;
+    if (Graph && graphData) initGraph(graphData);
+});
+
+nodeLabelSelect.addEventListener('change', (e) => {
+    nodeLabelAttribute = e.target.value;
+    if (Graph) Graph.nodeLabel(node => node[nodeLabelAttribute] || node.id);
+});
+
+edgeLabelSelect.addEventListener('change', (e) => {
+    edgeLabelAttribute = e.target.value;
+    if (Graph) Graph.linkLabel(link => link[edgeLabelAttribute] || '');
+});
+
+particleWidthSelect.addEventListener('change', (e) => {
+    particleWidthAttribute = e.target.value;
+    if (Graph && graphData) initGraph(graphData);
+});
+
+nodeLabelSizeSlider.addEventListener('input', (e) => {
+    nodeLabelSize = parseInt(e.target.value);
+    document.getElementById('val-node-label-size').textContent = nodeLabelSize;
+    if (Graph && currentMode === '2D') Graph.d3ReheatSimulation();
+});
+
+edgeLabelSizeSlider.addEventListener('input', (e) => {
+    edgeLabelSize = parseInt(e.target.value);
+    document.getElementById('val-edge-label-size').textContent = edgeLabelSize;
+    if (Graph && currentMode === '2D') Graph.d3ReheatSimulation();
 });
 
 // Controls
@@ -392,15 +476,20 @@ function scaleValue(value, minVal, maxVal, minSize, maxSize) {
 
 function initGraph(data) {
     // Calculate ranges for scaling
-    // Nodes: amount -> 2-10px
-    const nodeAmounts = data.nodes.map(n => parseFloat(n.amount)).filter(v => !isNaN(v));
-    const minNodeAmt = nodeAmounts.length ? Math.min(...nodeAmounts) : 0;
-    const maxNodeAmt = nodeAmounts.length ? Math.max(...nodeAmounts) : 1;
+    // Nodes
+    const nodeValues = data.nodes.map(n => parseFloat(n[nodeSizeAttribute])).filter(v => !isNaN(v));
+    const minNodeVal = nodeValues.length ? Math.min(...nodeValues) : 0;
+    const maxNodeVal = nodeValues.length ? Math.max(...nodeValues) : 1;
 
-    // Links: Assesment Amount -> 1-5px
-    const linkAmounts = data.links.map(l => parseFloat(l['Assesment Amount'])).filter(v => !isNaN(v));
-    const minLinkAmt = linkAmounts.length ? Math.min(...linkAmounts) : 0;
-    const maxLinkAmt = linkAmounts.length ? Math.max(...linkAmounts) : 1;
+    // Links
+    const linkValues = data.links.map(l => parseFloat(l[edgeWidthAttribute])).filter(v => !isNaN(v));
+    const minLinkVal = linkValues.length ? Math.min(...linkValues) : 0;
+    const maxLinkVal = linkValues.length ? Math.max(...linkValues) : 1;
+
+    // Particles
+    const particleValues = data.links.map(l => parseFloat(l[particleWidthAttribute])).filter(v => !isNaN(v));
+    const minParticleVal = particleValues.length ? Math.min(...particleValues) : 0;
+    const maxParticleVal = particleValues.length ? Math.max(...particleValues) : 1;
 
     // Color mapping based on current selection
     const values = [...new Set(data.nodes.map(n => n[nodeColorAttribute]).filter(Boolean))].sort();
@@ -422,21 +511,20 @@ function initGraph(data) {
         .height(graphContainer.offsetHeight)
         .backgroundColor(BACKGROUND_COLOR) // Consistent background
         .graphData(data)
-        .nodeLabel(node => node.legal_name || node.name || node.id) // Tooltip
-        .linkLabel(link => link.assamtstr || link.label || '') // Tooltip
+        .nodeLabel(node => node[nodeLabelAttribute] || node.id) // Tooltip
+        .linkLabel(link => link[edgeLabelAttribute] || '') // Tooltip
         .nodeColor(node => {
             if (highlightedNodes.size > 0 && !highlightedNodes.has(node.id)) return 'rgba(100, 100, 100, 0.2)'; // Increased visibility
-            // if (hoverNode && hoverNode !== node && !highlightedNodes.has(node.id)) return 'rgba(100, 100, 100, 0.2)'; // Dim on hover - REMOVED per request
             return colorMap[node[nodeColorAttribute]] || '#9ca3af';
         })
         .nodeVal(node => {
-            // Scale node size (radius) based on amount (2-10px)
-            return scaleValue(node.amount, minNodeAmt, maxNodeAmt, 2, 10);
+            // Scale node size (radius) based on selected attribute
+            return scaleValue(node[nodeSizeAttribute], minNodeVal, maxNodeVal, MIN_NODE_SIZE, MAX_NODE_SIZE);
         })
         .nodeRelSize(1) // Use nodeVal directly as radius (or close to it)
         .linkWidth(link => {
-            // Scale link width based on Assesment Amount (1-5px)
-            let width = scaleValue(link['Assesment Amount'], minLinkAmt, maxLinkAmt, 1, 5);
+            // Scale link width based on selected attribute
+            let width = scaleValue(link[edgeWidthAttribute], minLinkVal, maxLinkVal, MIN_EDGE_WIDTH, MAX_EDGE_WIDTH);
 
             if (highlightedLinks.has(getLinkId(link))) return width * 2;
             if (hoverLink === link) return width * 2;
@@ -459,17 +547,16 @@ function initGraph(data) {
             return !isNaN(degree) ? Math.min(degree, 5) : 2; // Cap at 5
         })
         .linkDirectionalParticleWidth(link => {
-            // Map 'Invoice count' to particle width
-            const count = parseFloat(link['Invoice count']);
-            return !isNaN(count) ? Math.min(count, 4) : 2;
+            // Map selected attribute to particle width
+            return scaleValue(link[particleWidthAttribute], minParticleVal, maxParticleVal, MIN_PARTICLE_WIDTH, MAX_PARTICLE_WIDTH);
         })
-        .linkDirectionalParticleSpeed(0.006) // Fixed speed as requested (6 -> 0.006)
+        .linkDirectionalParticleSpeed(parseFloat(particleSpeedSlider.value) * 0.0005) // Reduced speed multiplier
         .linkHoverPrecision(5) // Increased precision
         .onNodeClick(handleNodeClick)
         .onLinkClick(handleLinkClick)
         .onBackgroundClick(resetHighlight)
         .onNodeHover(node => {
-            if (isSelectionActive) return; // Disable hover when selection is active
+            if (isSelectionActive || !hoverEnabled) return; // Disable hover when selection is active OR hover disabled
 
             hoverNode = node || null;
             graphContainer.style.cursor = node ? 'pointer' : null;
@@ -481,7 +568,7 @@ function initGraph(data) {
             }
         })
         .onLinkHover(link => {
-            if (isSelectionActive) return; // Disable hover when selection is active
+            if (isSelectionActive || !hoverEnabled) return; // Disable hover when selection is active OR hover disabled
 
             hoverLink = link || null;
             graphContainer.style.cursor = link ? 'pointer' : null;
@@ -507,11 +594,11 @@ function initGraph(data) {
     // 2D Specific: Render Labels
     if (currentMode === '2D') {
         Graph.nodeCanvasObject((node, ctx, globalScale) => {
-            const label = node.legal_name || node.name || node.id;
-            const fontSize = 12 / globalScale;
+            const label = node[nodeLabelAttribute] || node.id;
+            const fontSize = nodeLabelSize / globalScale;
 
             // Draw Node
-            const radius = scaleValue(node.amount, minNodeAmt, maxNodeAmt, 2, 10);
+            const radius = scaleValue(node[nodeSizeAttribute], minNodeVal, maxNodeVal, MIN_NODE_SIZE, MAX_NODE_SIZE);
 
             ctx.beginPath();
             ctx.arc(node.x, node.y, radius, 0, 2 * Math.PI, false);
@@ -533,7 +620,7 @@ function initGraph(data) {
         })
             .linkCanvasObjectMode(() => 'after')
             .linkCanvasObject((link, ctx, globalScale) => {
-                const label = link.assamtstr || link.label || '';
+                const label = link[edgeLabelAttribute] || '';
                 if (!label) return;
 
                 // Show if selection is active AND link is highlighted, OR if no selection and zoomed in (filtered by density)
@@ -541,7 +628,7 @@ function initGraph(data) {
                     (!isSelectionActive && globalScale >= 1.5 && checkLabelDensity(getLinkId(link)));
 
                 if (showLabel) {
-                    const fontSize = 10 / globalScale;
+                    const fontSize = edgeLabelSize / globalScale;
                     ctx.font = `${fontSize}px Sans-Serif`;
                     ctx.textAlign = 'center';
                     ctx.textBaseline = 'middle';
@@ -788,12 +875,12 @@ function generateColors(count) {
 }
 
 function checkLabelDensity(id) {
-    if (LABEL_DENSITY >= 1) return true;
+    if (labelDensity >= 1) return true;
     let hash = 0;
     const str = String(id);
     for (let i = 0; i < str.length; i++) {
         hash = ((hash << 5) - hash) + str.charCodeAt(i);
         hash |= 0;
     }
-    return ((Math.abs(hash) % 100) / 100) < LABEL_DENSITY;
+    return ((Math.abs(hash) % 100) / 100) < labelDensity;
 }

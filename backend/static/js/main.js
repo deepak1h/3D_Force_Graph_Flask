@@ -19,6 +19,15 @@ let edgeLabelAttribute = 'assamtstr';
 let particleWidthAttribute = 'Assesment Amount';
 let nodeLabelSize = 12;
 let edgeLabelSize = 10;
+let arrowPos = 0.5;
+
+// 3D Specific State
+let linkOpacity = 0.2;
+let linkResolution = 6;
+let linkMaterialType = 'MeshLambertMaterial';
+let particleResolution = 6;
+let nodeResolution = 8;
+let THREE = null; // Will be imported dynamically
 let SpriteText = null; // Global reference for 3D labels
 
 // DOM Elements
@@ -63,6 +72,16 @@ const edgeLabelSelect = document.getElementById('edge-label-attr');
 const particleWidthSelect = document.getElementById('particle-width-attr');
 const nodeLabelSizeSlider = document.getElementById('node-label-size');
 const edgeLabelSizeSlider = document.getElementById('edge-label-size');
+const arrowPosSlider = document.getElementById('arrow-pos');
+
+// 3D Settings Elements
+const settings3dContainer = document.getElementById('settings-3d-container');
+const linkOpacitySlider = document.getElementById('link-opacity');
+const linkResolutionSlider = document.getElementById('link-resolution');
+const linkMaterialSelect = document.getElementById('link-material');
+const particleResolutionSlider = document.getElementById('particle-resolution');
+const nodeResolutionSlider = document.getElementById('node-resolution');
+
 const applyBtn = document.getElementById('apply-btn');
 const resetBtn = document.getElementById('reset-btn');
 
@@ -256,6 +275,13 @@ nodeSizeSelect.addEventListener('change', (e) => {
 
 edgeWidthSelect.addEventListener('change', (e) => {
     edgeWidthAttribute = e.target.value;
+    // Toggle visibility of 3D settings
+    if (currentMode === '3D') {
+        settings3dContainer.classList.remove('hidden');
+    } else {
+        settings3dContainer.classList.add('hidden');
+    }
+
     if (Graph && graphData) initGraph(graphData);
 });
 
@@ -283,6 +309,42 @@ nodeLabelSizeSlider.addEventListener('input', (e) => {
 edgeLabelSizeSlider.addEventListener('input', (e) => {
     edgeLabelSize = parseInt(e.target.value);
     document.getElementById('val-edge-label-size').textContent = edgeLabelSize;
+    updateGraphSettings();
+});
+
+arrowPosSlider.addEventListener('input', (e) => {
+    arrowPos = parseFloat(e.target.value);
+    document.getElementById('val-arrow-pos').textContent = arrowPos;
+    updateGraphSettings();
+});
+
+// 3D Settings Listeners
+linkOpacitySlider.addEventListener('input', (e) => {
+    linkOpacity = parseFloat(e.target.value);
+    document.getElementById('val-link-opacity').textContent = linkOpacity;
+    updateGraphSettings();
+});
+
+linkResolutionSlider.addEventListener('input', (e) => {
+    linkResolution = parseInt(e.target.value);
+    document.getElementById('val-link-resolution').textContent = linkResolution;
+    updateGraphSettings();
+});
+
+linkMaterialSelect.addEventListener('change', (e) => {
+    linkMaterialType = e.target.value;
+    updateGraphSettings();
+});
+
+particleResolutionSlider.addEventListener('input', (e) => {
+    particleResolution = parseInt(e.target.value);
+    document.getElementById('val-particle-resolution').textContent = particleResolution;
+    updateGraphSettings();
+});
+
+nodeResolutionSlider.addEventListener('input', (e) => {
+    nodeResolution = parseInt(e.target.value);
+    document.getElementById('val-node-resolution').textContent = nodeResolution;
     updateGraphSettings();
 });
 
@@ -334,6 +396,26 @@ function resetSettings() {
 
     document.getElementById('edge-label-size').value = 10;
     document.getElementById('val-edge-label-size').textContent = '10';
+
+    document.getElementById('arrow-pos').value = 0.5;
+    document.getElementById('val-arrow-pos').textContent = '0.5';
+
+    // Reset 3D Settings
+    linkOpacity = 0.2;
+    linkResolution = 6;
+    linkMaterialType = 'MeshLambertMaterial';
+    particleResolution = 6;
+    nodeResolution = 8;
+
+    document.getElementById('link-opacity').value = 0.2;
+    document.getElementById('val-link-opacity').textContent = '0.2';
+    document.getElementById('link-resolution').value = 6;
+    document.getElementById('val-link-resolution').textContent = '6';
+    document.getElementById('link-material').value = 'MeshLambertMaterial';
+    document.getElementById('particle-resolution').value = 6;
+    document.getElementById('val-particle-resolution').textContent = '6';
+    document.getElementById('node-resolution').value = 8;
+    document.getElementById('val-node-resolution').textContent = '8';
 
     // Apply Changes
     updateGraphSettings();
@@ -573,12 +655,22 @@ function scaleValue(value, minVal, maxVal, minSize, maxSize) {
 }
 
 async function initGraph(data) {
-    if (currentMode === '3D' && !SpriteText) {
-        try {
-            const module = await import('https://esm.sh/three-spritetext');
-            SpriteText = module.default;
-        } catch (e) {
-            console.error("Failed to load SpriteText", e);
+    if (currentMode === '3D') {
+        if (!SpriteText) {
+            try {
+                const module = await import('https://esm.sh/three-spritetext');
+                SpriteText = module.default;
+            } catch (e) {
+                console.error("Failed to load SpriteText", e);
+            }
+        }
+        if (!THREE) {
+            try {
+                const module = await import('https://esm.sh/three');
+                THREE = module;
+            } catch (e) {
+                console.error("Failed to load THREE", e);
+            }
         }
     }
 
@@ -721,7 +813,7 @@ function updateGraphSettings() {
             return color;
         })
         .linkDirectionalArrowLength(3.5)
-        .linkDirectionalArrowRelPos(1)
+        .linkDirectionalArrowRelPos(arrowPos)
         .linkDirectionalParticles(link => {
             if (!particleWidthAttribute) return 0; // No particles if None selected
             // Map 'Degree' to particle count
@@ -736,56 +828,102 @@ function updateGraphSettings() {
         .linkDirectionalParticleSpeed(parseFloat(particleSpeedSlider.value) * 0.0005) // Reduced speed multiplier
         .linkHoverPrecision(5); // Increased precision
 
-    if (currentMode === '3D' && SpriteText) {
-        Graph.nodeThreeObject(node => {
-            // Visibility Logic
-            const showLabel = (isSelectionActive && highlightedNodes.has(node.id)) ||
-                (!isSelectionActive && checkLabelDensity(node.id));
+    if (currentMode === '3D') {
+        Graph
+            .linkOpacity(linkOpacity)
+            .linkResolution(linkResolution)
+            .linkDirectionalParticleResolution(particleResolution)
+            .nodeResolution(nodeResolution);
 
-            if (!showLabel) return null;
+        if (THREE && linkMaterialType) {
+            // Create material based on type
+            // We need to create a material function or object? 
+            // 3d-force-graph expects linkMaterial to be a Material object or function returning one.
+            // But we want to apply it to all links.
+            // Let's use a function that returns a new material instance for each link (expensive?) or reuse?
+            // Reusing is better.
 
-            const label = node[nodeLabelAttribute] || node.id;
-            const sprite = new SpriteText(label);
-            sprite.material.depthWrite = false;
-            sprite.color = (highlightedNodes.size > 0 && !highlightedNodes.has(node.id)) ? 'rgba(100, 100, 100, 0.2)' : '#ffffff';
-            sprite.textHeight = nodeLabelSize;
-            sprite.center.y = -0.6; // Shift above node (radius is ~4-10, textHeight ~12. 0.5 is center. -0.5 is top edge?)
-            // Actually center.y = 0 is center. 0.5 is bottom, -0.5 is top.
-            // Let's try shifting it up by radius + padding.
-            // But SpriteText positioning is relative to the node center.
-            // We can just set a fixed offset or rely on center.y
+            let mat;
+            if (linkMaterialType === 'MeshBasicMaterial') mat = new THREE.MeshBasicMaterial({ color: 0xcccccc, transparent: true, opacity: linkOpacity });
+            else if (linkMaterialType === 'MeshPhongMaterial') mat = new THREE.MeshPhongMaterial({ color: 0xcccccc, transparent: true, opacity: linkOpacity });
+            else mat = new THREE.MeshLambertMaterial({ color: 0xcccccc, transparent: true, opacity: linkOpacity });
 
-            return sprite;
-        })
-            .nodeThreeObjectExtend(true)
-            .linkThreeObject(link => {
+            // We need to update color per link?
+            // If we set linkMaterial, it overrides linkColor?
+            // Actually linkColor sets the color of the default material.
+            // If we provide a custom material, we must handle color.
+
+            Graph.linkMaterial(link => {
+                const color = edgeColorMap[link.color] || '#ffffff';
+                const material = mat.clone(); // Clone to allow different colors
+                material.color.set(color);
+
+                // Highlight logic
+                if (highlightedNodes.size > 0 || highlightedLinks.size > 0) {
+                    if (!highlightedLinks.has(getLinkId(link))) {
+                        material.opacity = 0.15;
+                    } else {
+                        material.opacity = linkOpacity; // Restore selected opacity
+                    }
+                }
+
+                return material;
+            });
+        }
+
+        if (SpriteText) {
+            Graph.nodeThreeObject(node => {
                 // Visibility Logic
-                const showLabel = (isSelectionActive && highlightedLinks.has(getLinkId(link))) ||
-                    (!isSelectionActive && checkLabelDensity(getLinkId(link)));
+                const showLabel = (isSelectionActive && highlightedNodes.has(node.id)) ||
+                    (!isSelectionActive && checkLabelDensity(node.id));
 
                 if (!showLabel) return null;
 
-                if (!showLabel) return null;
-                if (!edgeLabelAttribute) return null; // No label if None selected
-
-                const label = link[edgeLabelAttribute] || '';
-                if (!label) return null;
-
+                const label = node[nodeLabelAttribute] || node.id;
                 const sprite = new SpriteText(label);
                 sprite.material.depthWrite = false;
-                sprite.color = 'rgba(200, 200, 200, 0.8)';
-                sprite.textHeight = edgeLabelSize;
+                sprite.color = (highlightedNodes.size > 0 && !highlightedNodes.has(node.id)) ? 'rgba(100, 100, 100, 0.2)' : '#ffffff';
+                sprite.textHeight = nodeLabelSize;
+                sprite.center.y = -0.6; // Shift above node (radius is ~4-10, textHeight ~12. 0.5 is center. -0.5 is top edge?)
+                // Actually center.y = 0 is center. 0.5 is bottom, -0.5 is top.
+                // Let's try shifting it up by radius + padding.
+                // But SpriteText positioning is relative to the node center.
+                // We can just set a fixed offset or rely on center.y
+
                 return sprite;
             })
-            .linkThreeObjectExtend(true)
-            .linkPositionUpdate((sprite, { start, end }) => {
-                if (!sprite) return;
-                const middlePos = Object.assign(...['x', 'y', 'z'].map(c => ({
-                    [c]: start[c] + (end[c] - start[c]) / 2 // calc middle point
-                })));
-                Object.assign(sprite.position, middlePos);
-            });
-    } else if (currentMode === '2D') { // 2D Specific: Render Labels
+                .nodeThreeObjectExtend(true)
+                .linkThreeObject(link => {
+                    // Visibility Logic
+                    const showLabel = (isSelectionActive && highlightedLinks.has(getLinkId(link))) ||
+                        (!isSelectionActive && checkLabelDensity(getLinkId(link)));
+
+                    if (!showLabel) return null;
+
+                    if (!showLabel) return null;
+                    if (!edgeLabelAttribute) return null; // No label if None selected
+
+                    const label = link[edgeLabelAttribute] || '';
+                    if (!label) return null;
+
+                    const sprite = new SpriteText(label);
+                    sprite.material.depthWrite = false;
+                    sprite.color = 'rgba(200, 200, 200, 0.8)';
+                    sprite.textHeight = edgeLabelSize;
+                    return sprite;
+                })
+                .linkThreeObjectExtend(true)
+                .linkPositionUpdate((sprite, { start, end }) => {
+                    if (!sprite) return;
+                    const middlePos = Object.assign(...['x', 'y', 'z'].map(c => ({
+                        [c]: start[c] + (end[c] - start[c]) / 2 // calc middle point
+                    })));
+                    Object.assign(sprite.position, middlePos);
+                });
+        }
+    }
+
+    if (currentMode === '2D') { // 2D Specific: Render Labels
         Graph.nodeCanvasObject((node, ctx, globalScale) => {
             const label = nodeLabelAttribute ? (node[nodeLabelAttribute] || node.id) : '';
             const fontSize = nodeLabelSize / globalScale;

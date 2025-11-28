@@ -347,6 +347,62 @@
               <input type="range" id="edge-label-size" min="1" max="30" step="1" value="10"
                 class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-indigo-500">
             </div>
+
+            <!-- Arrow Position (Common) -->
+            <div>
+              <label class="block text-sm font-medium text-gray-400 mb-2">Arrow Position (<span
+                  id="val-arrow-pos">0.5</span>)</label>
+              <input type="range" id="arrow-pos" min="0" max="1" step="0.1" value="0.5"
+                class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-indigo-500">
+            </div>
+
+            <!-- 3D Specific Settings -->
+            <div id="settings-3d-container" class="space-y-4 pt-4 border-t border-gray-700 hidden">
+              <h3 class="text-xs font-bold text-indigo-400 uppercase tracking-wider">3D Settings</h3>
+
+              <!-- Link Opacity -->
+              <div>
+                <label class="block text-sm font-medium text-gray-400 mb-2">Link Opacity (<span
+                    id="val-link-opacity">0.2</span>)</label>
+                <input type="range" id="link-opacity" min="0" max="1" step="0.1" value="0.2"
+                  class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-indigo-500">
+              </div>
+
+              <!-- Link Resolution -->
+              <div>
+                <label class="block text-sm font-medium text-gray-400 mb-2">Link Resolution (<span
+                    id="val-link-resolution">6</span>)</label>
+                <input type="range" id="link-resolution" min="3" max="12" step="1" value="6"
+                  class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-indigo-500">
+              </div>
+
+              <!-- Link Material -->
+              <div>
+                <label class="block text-sm font-medium text-gray-400 mb-2">Link Material</label>
+                <select id="link-material"
+                  class="w-full bg-gray-800 border border-gray-700 text-white rounded-lg focus:ring-indigo-500 focus:border-indigo-500 text-sm p-2.5 transition-colors">
+                  <option value="MeshBasicMaterial">Basic (Flat)</option>
+                  <option value="MeshLambertMaterial" selected>Lambert (Matte)</option>
+                  <option value="MeshPhongMaterial">Phong (Shiny)</option>
+                </select>
+              </div>
+
+              <!-- Particle Resolution -->
+              <div>
+                <label class="block text-sm font-medium text-gray-400 mb-2">Particle Resolution (<span
+                    id="val-particle-resolution">6</span>)</label>
+                <input type="range" id="particle-resolution" min="3" max="12" step="1" value="6"
+                  class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-indigo-500">
+              </div>
+
+              <!-- Node Resolution -->
+              <div>
+                <label class="block text-sm font-medium text-gray-400 mb-2">Node Resolution (<span
+                    id="val-node-resolution">8</span>)</label>
+                <input type="range" id="node-resolution" min="3" max="12" step="1" value="8"
+                  class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-indigo-500">
+              </div>
+            </div>
           </div>
         </div>
       </div>

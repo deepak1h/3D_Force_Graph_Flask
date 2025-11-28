@@ -681,20 +681,31 @@ function updateGraphSettings() {
 
     // Apply settings
     Graph
-        .nodeLabel(node => node[nodeLabelAttribute] || node.id) // Tooltip
-        .linkLabel(link => link[edgeLabelAttribute] || '') // Tooltip
+        .nodeLabel(node => {
+            if (!nodeLabelAttribute) return '';
+            return node[nodeLabelAttribute] || node.id;
+        }) // Tooltip
+        .linkLabel(link => {
+            if (!edgeLabelAttribute) return '';
+            return link[edgeLabelAttribute] || '';
+        }) // Tooltip
         .nodeColor(node => {
             if (highlightedNodes.size > 0 && !highlightedNodes.has(node.id)) return 'rgba(100, 100, 100, 0.2)'; // Increased visibility
+            if (!nodeColorAttribute) return '#ffffff'; // Default white
             return colorMap[node[nodeColorAttribute]] || '#9ca3af';
         })
         .nodeVal(node => {
             // Scale node size (radius) based on selected attribute
+            if (!nodeSizeAttribute) return 4; // Default constant size
             return scaleValue(node[nodeSizeAttribute], minNodeVal, maxNodeVal, MIN_NODE_SIZE, MAX_NODE_SIZE);
         })
         .nodeRelSize(1) // Use nodeVal directly as radius (or close to it)
         .linkWidth(link => {
             // Scale link width based on selected attribute
-            let width = scaleValue(link[edgeWidthAttribute], minLinkVal, maxLinkVal, MIN_EDGE_WIDTH, MAX_EDGE_WIDTH);
+            let width = 1; // Default thin
+            if (edgeWidthAttribute) {
+                width = scaleValue(link[edgeWidthAttribute], minLinkVal, maxLinkVal, MIN_EDGE_WIDTH, MAX_EDGE_WIDTH);
+            }
 
             if (highlightedLinks.has(getLinkId(link))) return width * 2;
             if (hoverLink === link) return width * 2;
@@ -712,11 +723,13 @@ function updateGraphSettings() {
         .linkDirectionalArrowLength(3.5)
         .linkDirectionalArrowRelPos(1)
         .linkDirectionalParticles(link => {
+            if (!particleWidthAttribute) return 0; // No particles if None selected
             // Map 'Degree' to particle count
             const degree = parseInt(link.Degree);
             return !isNaN(degree) ? Math.min(degree, 5) : 2; // Cap at 5
         })
         .linkDirectionalParticleWidth(link => {
+            if (!particleWidthAttribute) return 0;
             // Map selected attribute to particle width
             return scaleValue(link[particleWidthAttribute], minParticleVal, maxParticleVal, MIN_PARTICLE_WIDTH, MAX_PARTICLE_WIDTH);
         })
@@ -752,6 +765,9 @@ function updateGraphSettings() {
 
                 if (!showLabel) return null;
 
+                if (!showLabel) return null;
+                if (!edgeLabelAttribute) return null; // No label if None selected
+
                 const label = link[edgeLabelAttribute] || '';
                 if (!label) return null;
 
@@ -771,11 +787,14 @@ function updateGraphSettings() {
             });
     } else if (currentMode === '2D') { // 2D Specific: Render Labels
         Graph.nodeCanvasObject((node, ctx, globalScale) => {
-            const label = node[nodeLabelAttribute] || node.id;
+            const label = nodeLabelAttribute ? (node[nodeLabelAttribute] || node.id) : '';
             const fontSize = nodeLabelSize / globalScale;
 
             // Draw Node
-            const radius = scaleValue(node[nodeSizeAttribute], minNodeVal, maxNodeVal, MIN_NODE_SIZE, MAX_NODE_SIZE);
+            let radius = 4;
+            if (nodeSizeAttribute) {
+                radius = scaleValue(node[nodeSizeAttribute], minNodeVal, maxNodeVal, MIN_NODE_SIZE, MAX_NODE_SIZE);
+            }
 
             ctx.beginPath();
             ctx.arc(node.x, node.y, radius, 0, 2 * Math.PI, false);
@@ -787,7 +806,7 @@ function updateGraphSettings() {
             const showLabel = (isSelectionActive && highlightedNodes.has(node.id)) ||
                 (!isSelectionActive && globalScale >= 1.5 && checkLabelDensity(node.id));
 
-            if (showLabel) {
+            if (showLabel && nodeLabelAttribute) {
                 ctx.font = `${fontSize}px Sans-Serif`;
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'middle';
@@ -797,6 +816,7 @@ function updateGraphSettings() {
         })
             .linkCanvasObjectMode(() => 'after')
             .linkCanvasObject((link, ctx, globalScale) => {
+                if (!edgeLabelAttribute) return;
                 const label = link[edgeLabelAttribute] || '';
                 if (!label) return;
 

@@ -46,6 +46,7 @@ const closeSidebarBtn = document.getElementById('close-sidebar-btn');
 const tabBtns = document.querySelectorAll('.tab-btn');
 const tabFilters = document.getElementById('tab-filters');
 const tabSettings = document.getElementById('tab-settings');
+const settingsFooter = document.getElementById('settings-footer');
 
 // Filter Elements
 const searchInput = document.getElementById('search-input');
@@ -100,10 +101,10 @@ const closeInfoBtn = document.getElementById('close-info-btn');
 
 // Constants
 const MIN_NODE_SIZE = 2;
-const MAX_NODE_SIZE = 10;
-const MIN_EDGE_WIDTH = 1;
-const MAX_EDGE_WIDTH = 5;
-const MIN_PARTICLE_WIDTH = 1;
+const MAX_NODE_SIZE = 20
+const MIN_EDGE_WIDTH = 0.1
+const MAX_EDGE_WIDTH = 5
+const MIN_PARTICLE_WIDTH = 0.1
 const MAX_PARTICLE_WIDTH = 4;
 const BACKGROUND_COLOR = '#000011'; // Dark background for consistency
 // const LABEL_DENSITY = 0.1; // Removed constant, now using state variable
@@ -150,9 +151,11 @@ tabBtns.forEach(btn => {
         if (tab === 'filters') {
             tabFilters.classList.remove('hidden');
             tabSettings.classList.add('hidden');
+            settingsFooter.classList.add('hidden');
         } else {
             tabFilters.classList.add('hidden');
             tabSettings.classList.remove('hidden');
+            settingsFooter.classList.remove('hidden');
         }
     });
 });

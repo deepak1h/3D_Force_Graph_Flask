@@ -180,19 +180,7 @@
 
           <!-- Settings Content -->
           <div id="settings-content" class="space-y-4">
-            <!-- Action Buttons -->
-            <div class="grid grid-cols-2 gap-3">
-              <button id="apply-btn"
-                class="bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2">
-                <i data-lucide="check" class="w-4 h-4"></i>
-                Apply
-              </button>
-              <button id="reset-btn"
-                class="bg-gray-700 hover:bg-gray-600 text-white font-medium py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2">
-                <i data-lucide="rotate-ccw" class="w-4 h-4"></i>
-                Reset
-              </button>
-            </div>
+
 
             <!-- Toggles -->
             <div class="flex items-center justify-between">
@@ -406,6 +394,23 @@
           </div>
         </div>
       </div>
+
+      <!-- Settings Footer (Floating Buttons) -->
+      <div id="settings-footer" class="p-4 border-t border-gray-700 bg-gray-900/95 shrink-0 hidden">
+        <div class="grid grid-cols-2 gap-3">
+          <button id="apply-btn"
+            class="bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2">
+            <i data-lucide="check" class="w-4 h-4"></i>
+            Apply
+          </button>
+          <button id="reset-btn"
+            class="bg-gray-700 hover:bg-gray-600 text-white font-medium py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2">
+            <i data-lucide="rotate-ccw" class="w-4 h-4"></i>
+            Reset
+          </button>
+        </div>
+      </div>
+
     </aside>
 
     <!-- Floating Control Panel -->

@@ -20,6 +20,10 @@ let particleWidthAttribute = 'Assesment Amount';
 let nodeLabelSize = 12;
 let edgeLabelSize = 10;
 let arrowPos = 0.5;
+let arrowLength = 3.5;
+let maxNodeSize = 10;
+let maxEdgeWidth = 5;
+let maxParticleWidth = 4;
 
 // 3D Specific State
 let linkOpacity = 0.2;
@@ -62,6 +66,10 @@ const dagSelect = document.getElementById('dag-mode');
 const zoomBtn = document.getElementById('zoom-btn');
 const dimBtns = document.querySelectorAll('.dim-btn');
 const particleSpeedSlider = document.getElementById('particle-speed');
+const maxNodeSizeSlider = document.getElementById('max-node-size');
+const maxEdgeWidthSlider = document.getElementById('max-edge-width');
+const maxParticleWidthSlider = document.getElementById('max-particle-width');
+const arrowLengthSlider = document.getElementById('arrow-length');
 const nodeColorSelect = document.getElementById('node-color-by');
 const fixNodesToggle = document.getElementById('fix-nodes-toggle');
 const hoverToggle = document.getElementById('hover-toggle');
@@ -101,11 +109,11 @@ const closeInfoBtn = document.getElementById('close-info-btn');
 
 // Constants
 const MIN_NODE_SIZE = 2;
-const MAX_NODE_SIZE = 20
-const MIN_EDGE_WIDTH = 0.1
-const MAX_EDGE_WIDTH = 5
-const MIN_PARTICLE_WIDTH = 0.1
-const MAX_PARTICLE_WIDTH = 4;
+// const MAX_NODE_SIZE = 20; // Now dynamic
+const MIN_EDGE_WIDTH = 0.1;
+// const MAX_EDGE_WIDTH = 5; // Now dynamic
+const MIN_PARTICLE_WIDTH = 0.1;
+// const MAX_PARTICLE_WIDTH = 4; // Now dynamic
 const BACKGROUND_COLOR = '#000011'; // Dark background for consistency
 // const LABEL_DENSITY = 0.1; // Removed constant, now using state variable
 
@@ -281,6 +289,30 @@ edgeWidthSelect.addEventListener('change', (e) => {
     if (Graph && graphData) initGraph(graphData);
 });
 
+maxNodeSizeSlider.addEventListener('input', (e) => {
+    maxNodeSize = parseInt(e.target.value);
+    document.getElementById('val-max-node-size').textContent = maxNodeSize;
+    updateGraphSettings();
+});
+
+maxEdgeWidthSlider.addEventListener('input', (e) => {
+    maxEdgeWidth = parseInt(e.target.value);
+    document.getElementById('val-max-edge-width').textContent = maxEdgeWidth;
+    updateGraphSettings();
+});
+
+maxParticleWidthSlider.addEventListener('input', (e) => {
+    maxParticleWidth = parseInt(e.target.value);
+    document.getElementById('val-max-particle-width').textContent = maxParticleWidth;
+    updateGraphSettings();
+});
+
+arrowLengthSlider.addEventListener('input', (e) => {
+    arrowLength = parseFloat(e.target.value);
+    document.getElementById('val-arrow-length').textContent = arrowLength;
+    updateGraphSettings();
+});
+
 nodeLabelSelect.addEventListener('change', (e) => {
     nodeLabelAttribute = e.target.value;
     if (Graph) Graph.nodeLabel(node => node[nodeLabelAttribute] || node.id);
@@ -395,6 +427,21 @@ function resetSettings() {
 
     document.getElementById('arrow-pos').value = 0.5;
     document.getElementById('val-arrow-pos').textContent = '0.5';
+
+    // Reset Scales
+    maxNodeSize = 10;
+    maxEdgeWidth = 5;
+    maxParticleWidth = 4;
+    arrowLength = 3.5;
+
+    document.getElementById('max-node-size').value = 10;
+    document.getElementById('val-max-node-size').textContent = '10';
+    document.getElementById('max-edge-width').value = 5;
+    document.getElementById('val-max-edge-width').textContent = '5';
+    document.getElementById('max-particle-width').value = 4;
+    document.getElementById('val-max-particle-width').textContent = '4';
+    document.getElementById('arrow-length').value = 3.5;
+    document.getElementById('val-arrow-length').textContent = '3.5';
 
     // Reset 3D Settings
     linkOpacity = 0.2;
@@ -793,14 +840,14 @@ function updateGraphSettings() {
         .nodeVal(node => {
             // Scale node size (radius) based on selected attribute
             if (!nodeSizeAttribute) return 4; // Default constant size
-            return scaleValue(node[nodeSizeAttribute], minNodeVal, maxNodeVal, MIN_NODE_SIZE, MAX_NODE_SIZE);
+            return scaleValue(node[nodeSizeAttribute], minNodeVal, maxNodeVal, MIN_NODE_SIZE, maxNodeSize);
         })
         .nodeRelSize(1) // Use nodeVal directly as radius (or close to it)
         .linkWidth(link => {
             // Scale link width based on selected attribute
             let width = 1; // Default thin
             if (edgeWidthAttribute) {
-                width = scaleValue(link[edgeWidthAttribute], minLinkVal, maxLinkVal, MIN_EDGE_WIDTH, MAX_EDGE_WIDTH);
+                width = scaleValue(link[edgeWidthAttribute], minLinkVal, maxLinkVal, MIN_EDGE_WIDTH, maxEdgeWidth);
             }
 
             if (highlightedLinks.has(getLinkId(link))) return width * 2;
@@ -816,7 +863,8 @@ function updateGraphSettings() {
             // Hover dimming removed per request
             return color;
         })
-        .linkDirectionalArrowLength(3.5)
+
+        .linkDirectionalArrowLength(arrowLength)
         .linkDirectionalArrowRelPos(arrowPos)
         .linkDirectionalParticles(link => {
             if (!particleWidthAttribute) return 0; // No particles if None selected
@@ -827,7 +875,7 @@ function updateGraphSettings() {
         .linkDirectionalParticleWidth(link => {
             if (!particleWidthAttribute) return 0;
             // Map selected attribute to particle width
-            return scaleValue(link[particleWidthAttribute], minParticleVal, maxParticleVal, MIN_PARTICLE_WIDTH, MAX_PARTICLE_WIDTH);
+            return scaleValue(link[particleWidthAttribute], minParticleVal, maxParticleVal, MIN_PARTICLE_WIDTH, maxParticleWidth);
         })
         .linkDirectionalParticleSpeed(parseFloat(particleSpeedSlider.value) * 0.0005) // Reduced speed multiplier
         .linkHoverPrecision(5); // Increased precision
@@ -935,7 +983,7 @@ function updateGraphSettings() {
             // Draw Node
             let radius = 4;
             if (nodeSizeAttribute) {
-                radius = scaleValue(node[nodeSizeAttribute], minNodeVal, maxNodeVal, MIN_NODE_SIZE, MAX_NODE_SIZE);
+                radius = scaleValue(node[nodeSizeAttribute], minNodeVal, maxNodeVal, MIN_NODE_SIZE, maxNodeSize);
             }
 
             ctx.beginPath();

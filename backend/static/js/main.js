@@ -18,21 +18,93 @@ let nodeLabelAttribute = 'legal_name';
 let edgeLabelAttribute = 'assamtstr';
 let particleWidthAttribute = 'Assesment Amount';
 let nodeLabelSize = 12;
-let edgeLabelSize = 10;
+let edgeLabelSize = 2.5;
 let arrowPos = 0.5;
-let arrowLength = 3.5;
-let maxNodeSize = 10;
-let maxEdgeWidth = 5;
-let maxParticleWidth = 4;
+let arrowLength = 6;
+let maxNodeSize = 80;
+let maxEdgeWidth = 4;
+let maxParticleWidth = 3;
 
 // 3D Specific State
-let linkOpacity = 0.2;
+let linkOpacity = 0.5;
 let linkResolution = 6;
 let linkMaterialType = 'MeshLambertMaterial';
 let particleResolution = 6;
 let nodeResolution = 8;
 let THREE = null; // Will be imported dynamically
 let SpriteText = null; // Global reference for 3D labels
+
+const DEFAULTS_2D = {
+    // Common
+    fixNodes: false,
+    hoverEnabled: true,
+    labelDensity: 0.2,
+
+    nodeSizeAttribute: 'amount',
+    edgeWidthAttribute: 'Assesment Amount',
+    particleWidthAttribute: 'Assesment Amount',
+
+    nodeLabelAttribute: 'legal_name',
+    edgeLabelAttribute: 'assamtstr',
+
+    nodeLabelSize: 10,
+    edgeLabelSize: 10,
+
+    arrowPos: 0.5,
+    arrowLength: 2.5,
+
+    maxNodeSize: 7,
+    maxEdgeWidth: 8,
+    maxParticleWidth: 9, // usually no particles in 2D
+
+    // 3D-only values disabled
+    linkOpacity: null,
+    linkResolution: null,
+    linkMaterialType: null,
+    particleResolution: null,
+    nodeResolution: null
+};
+
+
+
+const DEFAULTS_3D = {
+    // Common
+    fixNodes: false,
+    hoverEnabled: true,
+    labelDensity: 0.1,
+
+    nodeSizeAttribute: 'amount',
+    edgeWidthAttribute: 'Assesment Amount',
+    particleWidthAttribute: 'Assesment Amount',
+
+    nodeLabelAttribute: 'legal_name',
+    edgeLabelAttribute: 'assamtstr',
+
+    nodeLabelSize: 12,
+    edgeLabelSize: 2.5,
+
+    arrowPos: 0.5,
+    arrowLength: 6,
+
+    maxNodeSize: 80,
+    maxEdgeWidth: 4,
+    maxParticleWidth: 3,
+
+    // 3D-specific
+    linkOpacity: 0.5,
+    linkResolution: 6,
+    linkMaterialType: 'MeshLambertMaterial',
+    particleResolution: 6,
+    nodeResolution: 8
+};
+
+
+function getDefaultsForMode(mode) {
+    return mode === '2D' ? DEFAULTS_2D : DEFAULTS_3D;
+}
+
+
+
 
 // DOM Elements
 const uploadContainer = document.getElementById('upload-container');
@@ -290,13 +362,23 @@ edgeWidthSelect.addEventListener('change', (e) => {
 });
 
 maxNodeSizeSlider.addEventListener('input', (e) => {
-    maxNodeSize = parseInt(e.target.value);
+    maxNodeSize = parseInt(e.target.value)*0.2;
+
+    if(currentMode === '3D') {
+        maxNodeSize = maxNodeSize * 10; // Scale up for 3D visibility
+    }
+    
     document.getElementById('val-max-node-size').textContent = maxNodeSize;
     updateGraphSettings();
 });
 
 maxEdgeWidthSlider.addEventListener('input', (e) => {
     maxEdgeWidth = parseInt(e.target.value);
+
+    if(currentMode === '3D') {
+        maxEdgeWidth = maxEdgeWidth * 0.5; // Scale up for 3D visibility
+    }
+
     document.getElementById('val-max-edge-width').textContent = maxEdgeWidth;
     updateGraphSettings();
 });
@@ -329,13 +411,23 @@ particleWidthSelect.addEventListener('change', (e) => {
 });
 
 nodeLabelSizeSlider.addEventListener('input', (e) => {
-    nodeLabelSize = parseInt(e.target.value);
+    
+    if(currentMode === '3D') {
+        nodeLabelSize = parseInt(e.target.value)*2; // Scale up for 3D visibility
+    }
+    else{
+        nodeLabelSize = parseInt(e.target.value)*0.7;
+    }
     document.getElementById('val-node-label-size').textContent = nodeLabelSize;
     updateGraphSettings();
 });
 
 edgeLabelSizeSlider.addEventListener('input', (e) => {
     edgeLabelSize = parseInt(e.target.value);
+
+    if(currentMode === '3D') {
+        edgeLabelSize = edgeLabelSize * 0.5; // Scale up for 3D visibility
+    }
     document.getElementById('val-edge-label-size').textContent = edgeLabelSize;
     updateGraphSettings();
 });
@@ -390,79 +482,170 @@ resetBtn.addEventListener('click', () => {
     resetSettings();
 });
 
+function applyDefaults(defaults) {
+    // ---- State ----
+    fixNodes = defaults.fixNodes;
+    hoverEnabled = defaults.hoverEnabled;
+    labelDensity = defaults.labelDensity;
+
+    nodeSizeAttribute = defaults.nodeSizeAttribute;
+    edgeWidthAttribute = defaults.edgeWidthAttribute;
+    particleWidthAttribute = defaults.particleWidthAttribute;
+
+    nodeLabelAttribute = defaults.nodeLabelAttribute;
+    edgeLabelAttribute = defaults.edgeLabelAttribute;
+
+    nodeLabelSize = defaults.nodeLabelSize;
+    edgeLabelSize = defaults.edgeLabelSize;
+
+    arrowPos = defaults.arrowPos;
+    arrowLength = defaults.arrowLength;
+
+    maxNodeSize = defaults.maxNodeSize;
+    maxEdgeWidth = defaults.maxEdgeWidth;
+    maxParticleWidth = defaults.maxParticleWidth;
+
+    // 3D-only
+    if (currentMode === '3D') {
+        linkOpacity = defaults.linkOpacity;
+        linkResolution = defaults.linkResolution;
+        linkMaterialType = defaults.linkMaterialType;
+        particleResolution = defaults.particleResolution;
+        nodeResolution = defaults.nodeResolution;
+    }
+
+    // ---- UI ----
+    document.getElementById('fix-nodes-toggle').checked = fixNodes;
+    document.getElementById('hover-toggle').checked = hoverEnabled;
+
+    document.getElementById('label-density').value = labelDensity;
+    document.getElementById('val-label-density').textContent = labelDensity;
+
+    document.getElementById('node-size-attr').value = nodeSizeAttribute;
+    document.getElementById('edge-width-attr').value = edgeWidthAttribute;
+    document.getElementById('particle-width-attr').value = particleWidthAttribute;
+
+    document.getElementById('node-label-attr').value = nodeLabelAttribute;
+    document.getElementById('edge-label-attr').value = edgeLabelAttribute;
+
+    document.getElementById('node-label-size').value = nodeLabelSize;
+    document.getElementById('val-node-label-size').textContent = nodeLabelSize;
+
+    document.getElementById('edge-label-size').value = edgeLabelSize;
+    document.getElementById('val-edge-label-size').textContent = edgeLabelSize;
+
+    document.getElementById('arrow-pos').value = arrowPos;
+    document.getElementById('val-arrow-pos').textContent = arrowPos;
+
+    document.getElementById('arrow-length').value = arrowLength;
+    document.getElementById('val-arrow-length').textContent = arrowLength;
+
+    document.getElementById('max-node-size').value = maxNodeSize;
+    document.getElementById('val-max-node-size').textContent = maxNodeSize;
+
+    document.getElementById('max-edge-width').value = maxEdgeWidth;
+    document.getElementById('val-max-edge-width').textContent = maxEdgeWidth;
+
+    document.getElementById('max-particle-width').value = maxParticleWidth;
+    document.getElementById('val-max-particle-width').textContent = maxParticleWidth;
+
+    if (currentMode === '3D') {
+        document.getElementById('link-opacity').value = linkOpacity;
+        document.getElementById('val-link-opacity').textContent = linkOpacity;
+
+        document.getElementById('link-resolution').value = linkResolution;
+        document.getElementById('val-link-resolution').textContent = linkResolution;
+
+        document.getElementById('link-material').value = linkMaterialType;
+
+        document.getElementById('particle-resolution').value = particleResolution;
+        document.getElementById('val-particle-resolution').textContent = particleResolution;
+
+        document.getElementById('node-resolution').value = nodeResolution;
+        document.getElementById('val-node-resolution').textContent = nodeResolution;
+    }
+}
+
 function resetSettings() {
-    // Reset State Variables
-    fixNodes = false;
-    hoverEnabled = true;
-    labelDensity = 0.7;
-    nodeSizeAttribute = 'amount';
-    edgeWidthAttribute = 'Assesment Amount';
-    nodeLabelAttribute = 'legal_name';
-    edgeLabelAttribute = 'assamtstr';
-    particleWidthAttribute = 'Assesment Amount';
-    nodeLabelSize = 12;
-    edgeLabelSize = 10;
-
-    // Reset UI Elements
-    document.getElementById('fix-nodes-toggle').checked = false;
-    document.getElementById('hover-toggle').checked = true;
-
-    document.getElementById('label-density').value = 0.7;
-    document.getElementById('val-label-density').textContent = '0.7';
-
-    document.getElementById('node-size-attr').value = 'amount';
-    document.getElementById('edge-width-attr').value = 'Assesment Amount';
-    document.getElementById('node-label-attr').value = 'legal_name';
-    document.getElementById('edge-label-attr').value = 'assamtstr';
-    document.getElementById('particle-width-attr').value = 'Assesment Amount';
-
-    document.getElementById('particle-speed').value = 4;
-    document.getElementById('val-particle-speed').textContent = '4';
-
-    document.getElementById('node-label-size').value = 12;
-    document.getElementById('val-node-label-size').textContent = '12';
-
-    document.getElementById('edge-label-size').value = 10;
-    document.getElementById('val-edge-label-size').textContent = '10';
-
-    document.getElementById('arrow-pos').value = 0.5;
-    document.getElementById('val-arrow-pos').textContent = '0.5';
-
-    // Reset Scales
-    maxNodeSize = 10;
-    maxEdgeWidth = 5;
-    maxParticleWidth = 4;
-    arrowLength = 3.5;
-
-    document.getElementById('max-node-size').value = 10;
-    document.getElementById('val-max-node-size').textContent = '10';
-    document.getElementById('max-edge-width').value = 5;
-    document.getElementById('val-max-edge-width').textContent = '5';
-    document.getElementById('max-particle-width').value = 4;
-    document.getElementById('val-max-particle-width').textContent = '4';
-    document.getElementById('arrow-length').value = 3.5;
-    document.getElementById('val-arrow-length').textContent = '3.5';
-
-    // Reset 3D Settings
-    linkOpacity = 0.2;
-    linkResolution = 6;
-    linkMaterialType = 'MeshLambertMaterial';
-    particleResolution = 6;
-    nodeResolution = 8;
-
-    document.getElementById('link-opacity').value = 0.2;
-    document.getElementById('val-link-opacity').textContent = '0.2';
-    document.getElementById('link-resolution').value = 6;
-    document.getElementById('val-link-resolution').textContent = '6';
-    document.getElementById('link-material').value = 'MeshLambertMaterial';
-    document.getElementById('particle-resolution').value = 6;
-    document.getElementById('val-particle-resolution').textContent = '6';
-    document.getElementById('node-resolution').value = 8;
-    document.getElementById('val-node-resolution').textContent = '8';
-
-    // Apply Changes
+    const defaults = getDefaultsForMode(currentMode);
+    applyDefaults(defaults);
     updateGraphSettings();
 }
+
+
+// function resetSettings() {
+//     // Reset State Variables
+//     fixNodes = false;
+//     hoverEnabled = true;
+//     labelDensity = 0.1;
+//     nodeSizeAttribute = 'amount';
+//     edgeWidthAttribute = 'Assesment Amount';
+//     nodeLabelAttribute = 'legal_name';
+//     edgeLabelAttribute = 'assamtstr';
+//     particleWidthAttribute = 'Assesment Amount';
+//     nodeLabelSize = 10;
+//     edgeLabelSize = 5;
+
+//     // Reset UI Elements
+//     document.getElementById('fix-nodes-toggle').checked = false;
+//     document.getElementById('hover-toggle').checked = true;
+
+//     document.getElementById('label-density').value = 0.7;
+//     document.getElementById('val-label-density').textContent = '0.7';
+
+//     document.getElementById('node-size-attr').value = 'amount';
+//     document.getElementById('edge-width-attr').value = 'Assesment Amount';
+//     document.getElementById('node-label-attr').value = 'legal_name';
+//     document.getElementById('edge-label-attr').value = 'assamtstr';
+//     document.getElementById('particle-width-attr').value = 'Assesment Amount';
+
+//     document.getElementById('particle-speed').value = 4;
+//     document.getElementById('val-particle-speed').textContent = '4';
+
+//     document.getElementById('node-label-size').value = 12;
+//     document.getElementById('val-node-label-size').textContent = '12';
+
+//     document.getElementById('edge-label-size').value = 10;
+//     document.getElementById('val-edge-label-size').textContent = '10';
+
+//     document.getElementById('arrow-pos').value = 0.5;
+//     document.getElementById('val-arrow-pos').textContent = '0.5';
+
+//     // Reset Scales
+//     maxNodeSize = 10;
+//     maxEdgeWidth = 5;
+//     maxParticleWidth = 4;
+//     arrowLength = 3.5;
+
+//     document.getElementById('max-node-size').value = 10;
+//     document.getElementById('val-max-node-size').textContent = '10';
+//     document.getElementById('max-edge-width').value = 5;
+//     document.getElementById('val-max-edge-width').textContent = '5';
+//     document.getElementById('max-particle-width').value = 4;
+//     document.getElementById('val-max-particle-width').textContent = '4';
+//     document.getElementById('arrow-length').value = 3.5;
+//     document.getElementById('val-arrow-length').textContent = '3.5';
+
+//     // Reset 3D Settings
+//     linkOpacity = 0.2;
+//     linkResolution = 6;
+//     linkMaterialType = 'MeshLambertMaterial';
+//     particleResolution = 6;
+//     nodeResolution = 8;
+
+//     document.getElementById('link-opacity').value = 0.2;
+//     document.getElementById('val-link-opacity').textContent = '0.2';
+//     document.getElementById('link-resolution').value = 6;
+//     document.getElementById('val-link-resolution').textContent = '6';
+//     document.getElementById('link-material').value = 'MeshLambertMaterial';
+//     document.getElementById('particle-resolution').value = 6;
+//     document.getElementById('val-particle-resolution').textContent = '6';
+//     document.getElementById('node-resolution').value = 8;
+//     document.getElementById('val-node-resolution').textContent = '8';
+
+//     // Apply Changes
+//     updateGraphSettings();
+// }
 
 // Controls
 zoomInBtn.addEventListener('click', () => {
@@ -534,7 +717,10 @@ dimBtns.forEach(btn => {
         e.target.classList.add('bg-indigo-600', 'text-white', 'shadow-sm');
         e.target.classList.remove('text-gray-300', 'hover:bg-gray-600');
 
+        
+
         switchGraphMode(mode);
+        resetSettings()
     });
 });
 
@@ -935,7 +1121,7 @@ function updateGraphSettings() {
                 const sprite = new SpriteText(label);
                 sprite.material.depthWrite = false;
                 sprite.color = (highlightedNodes.size > 0 && !highlightedNodes.has(node.id)) ? 'rgba(100, 100, 100, 0.2)' : '#ffffff';
-                sprite.textHeight = nodeLabelSize;
+                sprite.textHeight = (nodeLabelSize*0.2).toFixed(1); // Scale down for 3D visibility
                 sprite.center.y = -0.6; // Shift above node (radius is ~4-10, textHeight ~12. 0.5 is center. -0.5 is top edge?)
                 // Actually center.y = 0 is center. 0.5 is bottom, -0.5 is top.
                 // Let's try shifting it up by radius + padding.

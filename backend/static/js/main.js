@@ -21,7 +21,7 @@ let nodeLabelSize = 12;
 let edgeLabelSize = 2.5;
 let arrowPos = 0.5;
 let arrowLength = 6;
-let maxNodeSize = 80;
+let maxNodeSize = 7;
 let maxEdgeWidth = 4;
 let maxParticleWidth = 3;
 let minNodeSize = 2;
@@ -30,9 +30,10 @@ let minParticleWidth = 1;
 let nodeScaleType = 'linear';
 let edgeScaleType = 'linear';
 let particleScaleType = 'linear';
+let isPaused = false;
 
 let nodeSizeMultiplier = 10;
-let edgeWidthMultiplier = 0.5;
+let edgeWidthMultiplier = 0.8;
 let particleWidthMultiplier = 0.5;
 
 // 3D Specific State
@@ -128,7 +129,7 @@ const DEFAULTS_3D = {
 
     maxNodeSize: 8,
     maxEdgeWidth: 4,
-    maxParticleWidth: 3,
+    maxParticleWidth: 5,
     minNodeSize: 1,
     minEdgeWidth: 0.5,
     minParticleWidth: 0.5,
@@ -458,13 +459,12 @@ maxNodeSizeSlider.addEventListener('input', (e) => {
 });
 
 maxEdgeWidthSlider.addEventListener('input', (e) => {
-    maxEdgeWidth_temp = parseInt(e.target.value);
+    maxEdgeWidth = parseInt(e.target.value);
 
     // if (currentMode === '3D') {
     //     maxEdgeWidth = maxEdgeWidth_temp * 0.5; // Scale up for 3D visibility
     // }
-
-    document.getElementById('val-max-edge-width').textContent = maxEdgeWidth_temp;
+    document.getElementById('val-max-edge-width').textContent = maxEdgeWidth;
     updateGraphSettings();
 });
 
@@ -1594,7 +1594,7 @@ function getLinkId(link) {
 function handleNodeClick(node) {
     isSelectionActive = true; // Activate selection mode
     showInfo(node, 'Node Details');
-    zoomToNode(node);
+    //zoomToNode(node);
 
     highlightedNodes.clear();
     highlightedLinks.clear();

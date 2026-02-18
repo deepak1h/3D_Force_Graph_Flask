@@ -1791,3 +1791,116 @@ function checkLabelDensity(id) {
     }
     return ((Math.abs(hash) % 100) / 100) < labelDensity;
 }
+
+// Clustering Elements
+const clusteringAlgorithmSelect = document.getElementById('clustering-algorithm');
+const runClusteringBtn = document.getElementById('run-clustering-btn');
+
+// ... (existing code)
+
+// Clustering Event Listener
+runClusteringBtn.addEventListener('click', async () => {
+    const algorithm = clusteringAlgorithmSelect.value;
+    if (!algorithm) {
+        alert('Please select a clustering algorithm');
+        return;
+    }
+
+    if (!graphData) {
+        alert('No graph data loaded');
+        return;
+    }
+
+    // Show loading state
+    const originalText = runClusteringBtn.innerHTML;
+    runClusteringBtn.innerHTML = '<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> Processing...';
+    runClusteringBtn.disabled = true;
+
+    try {
+        // Prepare data for backend
+        // We only need nodes (id) and links (source, target)
+        // Note: graphData.links might have object references for source/target after D3 init, 
+        // ensuring we send IDs.
+        const payload = {
+            nodes: graphData.nodes.map(n => ({ id: n.id })),
+            links: graphData.links.map(l => ({
+                source: typeof l.source === 'object' ? l.source.id : l.source,
+                target: typeof l.target === 'object' ? l.target.id : l.target
+            })),
+            algorithm: algorithm
+        };
+
+        const response = await fetch('/api/cluster', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(payload)
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Clustering failed');
+        }
+
+        const result = await response.json();
+
+        if (result.clusters) {
+            applyClustering(result.clusters);
+        }
+
+    } catch (error) {
+        console.error('Clustering error:', error);
+        alert(`Clustering failed: ${error.message}`);
+    } finally {
+        // Restore button state
+        runClusteringBtn.innerHTML = originalText;
+        runClusteringBtn.disabled = false;
+        lucide.createIcons();
+    }
+});
+
+function applyClustering(clusters) {
+    // Update graphData nodes with cluster info
+    graphData.nodes.forEach(node => {
+        if (clusters[node.id] !== undefined) {
+            node.cluster = clusters[node.id];
+        }
+    });
+
+    // Add 'cluster' to node color options if not present
+    let optionExists = false;
+    Array.from(nodeColorSelect.options).forEach(opt => {
+        if (opt.value === 'cluster') optionExists = true;
+    });
+
+    if (!optionExists) {
+        const opt = document.createElement('option');
+        opt.value = 'cluster';
+        opt.textContent = 'Cluster';
+        nodeColorSelect.appendChild(opt);
+    }
+
+    // Set active color attribute to cluster
+    nodeColorSelect.value = 'cluster';
+    nodeColorAttribute = 'cluster';
+
+    // Update graph
+    if (Graph) {
+        const values = [...new Set(Object.values(clusters))].sort((a, b) => a - b);
+        const colors = generateColors(values.length);
+        const colorMap = {};
+        values.forEach((v, i) => colorMap[v] = colors[i]);
+
+        Graph.nodeColor(node => {
+            if (highlightedNodes.size > 0 && !highlightedNodes.has(node.id)) return 'rgba(100, 100, 100, 0.2)';
+            return colorMap[node.cluster] || '#9ca3af';
+        });
+
+        // Re-render
+        Graph.d3ReheatSimulation();
+    }
+
+    // Show success message (optional, or just relies on visual change)
+    // alert(`Clustering complete. Found ${new Set(Object.values(clusters)).size} communities.`);
+}

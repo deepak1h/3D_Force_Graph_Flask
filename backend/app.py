@@ -78,6 +78,125 @@ def parse_json(content):
         print(f"Error parsing JSON: {e}")
         raise ValueError(f"Invalid JSON file: {str(e)}")
 
+
+try:
+    import networkx as nx
+    from networkx.algorithms import community
+except ImportError:
+    nx = None
+
+try:
+    import markov_clustering as mcl
+except ImportError:
+    mcl = None
+
+try:
+    import igraph as ig
+    import leidenalg
+except ImportError:
+    ig = None
+    leidenalg = None
+
+def apply_clustering(graph_data, algorithm):
+    """
+    Apply clustering algorithm to graph data.
+    Returns a dictionary mapping node_id -> cluster_id
+    """
+    
+    # Create NetworkX graph
+    G = nx.Graph()
+    # Add nodes
+    for node in graph_data['nodes']:
+        G.add_node(node['id'])
+        
+    # Add edges
+    for link in graph_data['links']:
+        G.add_edge(link['source'], link['target'])
+        
+    clusters = {}
+    
+    try:
+        if algorithm == 'louvain':
+            # Use NetworkX Louvain implementation
+            # Returns list of sets of nodes
+            if not nx: raise ImportError("NetworkX not available")
+            communities = community.louvain_communities(G)
+            for i, comm in enumerate(communities):
+                for node_id in comm:
+                    clusters[node_id] = i
+                    
+        elif algorithm == 'leiden':
+            # Use leidenalg with igraph
+            if not ig or not leidenalg: raise ImportError("Leidenalg/igraph not available")
+            
+            # Convert NetworkX to igraph
+            # Mapping node ids to indices
+            node_id_map = {node: i for i, node in enumerate(G.nodes())}
+            reverse_map = {i: node for node, i in node_id_map.items()}
+            
+            h = ig.Graph()
+            h.add_vertices(len(G.nodes()))
+            edges = [(node_id_map[u], node_id_map[v]) for u, v in G.edges()]
+            h.add_edges(edges)
+            
+            # Run Leiden
+            partition = leidenalg.find_partition(h, leidenalg.ModularityVertexPartition)
+            
+            for i, part in enumerate(partition):
+                for node_idx in part:
+                    clusters[reverse_map[node_idx]] = i
+                    
+        elif algorithm == 'mcl':
+            # Markov Clustering
+            if not mcl: raise ImportError("Markov Clustering not available")
+            if not nx: raise ImportError("NetworkX not available")
+            
+            # Get adjacency matrix
+            matrix = nx.to_scipy_sparse_array(G)
+            
+            # Run MCL
+            result = mcl.run_mcl(matrix)
+            clusters_raw = mcl.get_clusters(result)
+            
+            # Map back to nodes
+            nodes_list = list(G.nodes())
+            for i, cluster in enumerate(clusters_raw):
+                for node_idx in cluster:
+                    clusters[nodes_list[node_idx]] = i
+                    
+        elif algorithm == 'greedy':
+            # Greedy Modularity
+            if not nx: raise ImportError("NetworkX not available")
+            communities = community.greedy_modularity_communities(G)
+            for i, comm in enumerate(communities):
+                for node_id in comm:
+                    clusters[node_id] = i
+
+        else: 
+             return {'error': f"Unknown algorithm: {algorithm}"}
+
+        return {'clusters': clusters}
+        
+    except Exception as e:
+        print(f"Clustering error: {e}")
+        return {'error': str(e)}
+
+
+@app.route('/api/cluster', methods=['POST'])
+def cluster_graph():
+    data = request.json
+    if not data or 'nodes' not in data or 'links' not in data:
+        return jsonify({'error': 'Invalid graph data'}), 400
+        
+    algorithm = data.get('algorithm', 'louvain')
+    
+    result = apply_clustering(data, algorithm)
+    
+    if 'error' in result:
+        return jsonify({'error': result['error']}), 500
+        
+    return jsonify(result)
+
 @app.route('/api/upload', methods=['POST'])
 def upload_file():
     if 'file' not in request.files:

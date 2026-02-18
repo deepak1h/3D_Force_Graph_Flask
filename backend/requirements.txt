@@ -1,2 +1,9 @@
 flask
 flask-cors
+
+networkx
+numpy
+scipy
+markov_clustering
+leidenalg
+igraph

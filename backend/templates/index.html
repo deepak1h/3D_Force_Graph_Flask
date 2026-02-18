@@ -156,6 +156,7 @@
               <div id="filter-zone" class="space-y-1 pl-2 hidden"></div>
             </div>
 
+
             <!-- Edge Color Filter -->
             <div class="filter-section">
               <button
@@ -165,6 +166,26 @@
                 <i data-lucide="chevron-down" class="w-4 h-4 transition-transform duration-200"></i>
               </button>
               <div id="filter-edge" class="space-y-1 pl-2 hidden"></div>
+            </div>
+
+            <!-- Clustering Section -->
+            <div class="filter-section pt-4 border-t border-gray-700">
+              <h3 class="text-xs font-bold text-indigo-400 uppercase tracking-wider mb-3">Clustering</h3>
+              <div class="space-y-3">
+                <select id="clustering-algorithm"
+                  class="w-full bg-gray-800 border border-gray-700 text-white rounded-lg focus:ring-indigo-500 focus:border-indigo-500 text-sm p-2.5 transition-colors">
+                  <option value="">Select Algorithm</option>
+                  <option value="louvain">Louvain (Standard)</option>
+                  <option value="leiden">Leiden (Robust)</option>
+                  <option value="mcl">Markov Clustering (MCL)</option>
+                  <option value="greedy">Greedy Modularity</option>
+                </select>
+                <button id="run-clustering-btn"
+                  class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2">
+                  <i data-lucide="cpu" class="w-4 h-4"></i>
+                  Run Clustering
+                </button>
+              </div>
             </div>
           </div>
         </div>

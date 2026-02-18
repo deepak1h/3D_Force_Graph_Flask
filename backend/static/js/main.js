@@ -24,6 +24,16 @@ let arrowLength = 6;
 let maxNodeSize = 80;
 let maxEdgeWidth = 4;
 let maxParticleWidth = 3;
+let minNodeSize = 2;
+let minEdgeWidth = 1;
+let minParticleWidth = 1;
+let nodeScaleType = 'linear';
+let edgeScaleType = 'linear';
+let particleScaleType = 'linear';
+
+let nodeSizeMultiplier = 10;
+let edgeWidthMultiplier = 0.5;
+let particleWidthMultiplier = 0.5;
 
 // 3D Specific State
 let linkOpacity = 0.5;
@@ -33,6 +43,18 @@ let particleResolution = 6;
 let nodeResolution = 8;
 let THREE = null; // Will be imported dynamically
 let SpriteText = null; // Global reference for 3D labels
+
+// Physics State
+let chargeStrength = -30;
+let chargeTheta = 0.9;
+let chargeDistMin = 1;
+let chargeDistMax = 1000;
+let linkDistance = 30;
+let linkIterations = 1;
+let collideStrength = 0.7;
+let collideRadius = 1;
+let collideIterations = 1;
+let centerStrength = 1;
 
 const DEFAULTS_2D = {
     // Common
@@ -56,13 +78,31 @@ const DEFAULTS_2D = {
     maxNodeSize: 7,
     maxEdgeWidth: 8,
     maxParticleWidth: 9, // usually no particles in 2D
+    minNodeSize: 2,
+    minEdgeWidth: 1,
+    minParticleWidth: 1,
+    nodeScaleType: 'linear',
+    edgeScaleType: 'linear',
+    particleScaleType: 'linear',
 
     // 3D-only values disabled
     linkOpacity: null,
     linkResolution: null,
     linkMaterialType: null,
     particleResolution: null,
-    nodeResolution: null
+    nodeResolution: null,
+
+    // Physics
+    chargeStrength: -30,
+    chargeTheta: 0.9,
+    chargeDistMin: 1,
+    chargeDistMax: 1000,
+    linkDistance: 30,
+    linkIterations: 1,
+    collideStrength: 0.7,
+    collideRadius: 1,
+    collideIterations: 1,
+    centerStrength: 1
 };
 
 
@@ -86,16 +126,34 @@ const DEFAULTS_3D = {
     arrowPos: 0.5,
     arrowLength: 6,
 
-    maxNodeSize: 80,
+    maxNodeSize: 8,
     maxEdgeWidth: 4,
     maxParticleWidth: 3,
+    minNodeSize: 1,
+    minEdgeWidth: 0.5,
+    minParticleWidth: 0.5,
+    nodeScaleType: 'linear', // 3D might benefit from log? Keep linear for consistency
+    edgeScaleType: 'linear',
+    particleScaleType: 'linear',
 
     // 3D-specific
     linkOpacity: 0.5,
     linkResolution: 6,
     linkMaterialType: 'MeshLambertMaterial',
     particleResolution: 6,
-    nodeResolution: 8
+    nodeResolution: 8,
+
+    // Physics
+    chargeStrength: -30,
+    chargeTheta: 0.9,
+    chargeDistMin: 1,
+    chargeDistMax: 2000,
+    linkDistance: 30,
+    linkIterations: 1,
+    collideStrength: 0.7,
+    collideRadius: 1,
+    collideIterations: 1,
+    centerStrength: 1
 };
 
 
@@ -122,6 +180,7 @@ const closeSidebarBtn = document.getElementById('close-sidebar-btn');
 const tabBtns = document.querySelectorAll('.tab-btn');
 const tabFilters = document.getElementById('tab-filters');
 const tabSettings = document.getElementById('tab-settings');
+const tabPhysics = document.getElementById('tab-physics');
 const settingsFooter = document.getElementById('settings-footer');
 
 // Filter Elements
@@ -141,6 +200,12 @@ const particleSpeedSlider = document.getElementById('particle-speed');
 const maxNodeSizeSlider = document.getElementById('max-node-size');
 const maxEdgeWidthSlider = document.getElementById('max-edge-width');
 const maxParticleWidthSlider = document.getElementById('max-particle-width');
+const minNodeSizeSlider = document.getElementById('min-node-size');
+const minEdgeWidthSlider = document.getElementById('min-edge-width');
+const minParticleWidthSlider = document.getElementById('min-particle-width');
+const nodeScaleTypeSelect = document.getElementById('node-scale-type');
+const edgeScaleTypeSelect = document.getElementById('edge-scale-type');
+const particleScaleTypeSelect = document.getElementById('particle-scale-type');
 const arrowLengthSlider = document.getElementById('arrow-length');
 const nodeColorSelect = document.getElementById('node-color-by');
 const fixNodesToggle = document.getElementById('fix-nodes-toggle');
@@ -166,6 +231,21 @@ const nodeResolutionSlider = document.getElementById('node-resolution');
 const applyBtn = document.getElementById('apply-btn');
 const resetBtn = document.getElementById('reset-btn');
 
+// Physics Settings Elements
+const chargeStrengthSlider = document.getElementById('charge-strength');
+const chargeThetaSlider = document.getElementById('charge-theta');
+const chargeDistMinSlider = document.getElementById('charge-dist-min');
+const chargeDistMaxSlider = document.getElementById('charge-dist-max');
+
+const linkDistanceSlider = document.getElementById('link-distance');
+const linkIterationsSlider = document.getElementById('link-iterations');
+
+const collideStrengthSlider = document.getElementById('collide-strength');
+const collideRadiusSlider = document.getElementById('collide-radius');
+const collideIterationsSlider = document.getElementById('collide-iterations');
+
+const centerStrengthSlider = document.getElementById('center-strength');
+
 // Floating Controls
 const zoomInBtn = document.getElementById('zoom-in-btn');
 const zoomOutBtn = document.getElementById('zoom-out-btn');
@@ -180,13 +260,13 @@ const infoTitle = document.getElementById('info-title');
 const closeInfoBtn = document.getElementById('close-info-btn');
 
 // Constants
-const MIN_NODE_SIZE = 2;
+// const MIN_NODE_SIZE = 2;
 // const MAX_NODE_SIZE = 20; // Now dynamic
-const MIN_EDGE_WIDTH = 0.1;
+// const MIN_EDGE_WIDTH = 1;
 // const MAX_EDGE_WIDTH = 5; // Now dynamic
-const MIN_PARTICLE_WIDTH = 0.1;
+// const MIN_PARTICLE_WIDTH = 1;
 // const MAX_PARTICLE_WIDTH = 4; // Now dynamic
-const BACKGROUND_COLOR = '#000011'; // Dark background for consistency
+const BACKGROUND_COLOR = '#1a202c'; // Dark background for consistency
 // const LABEL_DENSITY = 0.1; // Removed constant, now using state variable
 
 // --- Event Listeners ---
@@ -228,14 +308,19 @@ tabBtns.forEach(btn => {
 
         // Show Content
         const tab = btn.dataset.tab;
+        tabFilters.classList.add('hidden');
+        tabSettings.classList.add('hidden');
+        tabPhysics.classList.add('hidden');
+        settingsFooter.classList.add('hidden');
+
         if (tab === 'filters') {
             tabFilters.classList.remove('hidden');
-            tabSettings.classList.add('hidden');
-            settingsFooter.classList.add('hidden');
-        } else {
-            tabFilters.classList.add('hidden');
+        } else if (tab === 'settings') {
             tabSettings.classList.remove('hidden');
             settingsFooter.classList.remove('hidden');
+        } else if (tab === 'physics') {
+            tabPhysics.classList.remove('hidden');
+            settingsFooter.classList.remove('hidden'); // Reuse footer for Reset/Apply if needed, or maybe not needed for physics? Let's keep it.
         }
     });
 });
@@ -362,30 +447,69 @@ edgeWidthSelect.addEventListener('change', (e) => {
 });
 
 maxNodeSizeSlider.addEventListener('input', (e) => {
-    maxNodeSize = parseInt(e.target.value)*0.2;
+    maxNodeSize = parseInt(e.target.value);
 
-    if(currentMode === '3D') {
-        maxNodeSize = maxNodeSize * 10; // Scale up for 3D visibility
-    }
-    
+    // if (currentMode === '3D') {
+    //     maxNodeSize = maxNodeSize_temp * maxNodeSize_temp; // Scale up for 3D visibility
+    // }
+
     document.getElementById('val-max-node-size').textContent = maxNodeSize;
     updateGraphSettings();
 });
 
 maxEdgeWidthSlider.addEventListener('input', (e) => {
-    maxEdgeWidth = parseInt(e.target.value);
+    maxEdgeWidth_temp = parseInt(e.target.value);
 
-    if(currentMode === '3D') {
-        maxEdgeWidth = maxEdgeWidth * 0.5; // Scale up for 3D visibility
-    }
+    // if (currentMode === '3D') {
+    //     maxEdgeWidth = maxEdgeWidth_temp * 0.5; // Scale up for 3D visibility
+    // }
 
-    document.getElementById('val-max-edge-width').textContent = maxEdgeWidth;
+    document.getElementById('val-max-edge-width').textContent = maxEdgeWidth_temp;
     updateGraphSettings();
 });
 
 maxParticleWidthSlider.addEventListener('input', (e) => {
     maxParticleWidth = parseInt(e.target.value);
     document.getElementById('val-max-particle-width').textContent = maxParticleWidth;
+    updateGraphSettings();
+});
+
+minNodeSizeSlider.addEventListener('input', (e) => {
+    minNodeSize = parseFloat(e.target.value);
+    // if (currentMode === '3D') {
+    //     minNodeSize = minNodeSize_temp * minNodeSize_temp; // Scale for 3D
+    // }
+    document.getElementById('val-min-node-size').textContent = minNodeSize;
+    updateGraphSettings();
+});
+
+minEdgeWidthSlider.addEventListener('input', (e) => {
+    minEdgeWidth = parseFloat(e.target.value);
+    // if (currentMode === '3D') {
+    //     minEdgeWidth = minEdgeWidth_temp * 0.5; // Scale for 3D
+    // }
+    document.getElementById('val-min-edge-width').textContent = minEdgeWidth;
+    updateGraphSettings();
+});
+
+minParticleWidthSlider.addEventListener('input', (e) => {
+    minParticleWidth = parseFloat(e.target.value);
+    document.getElementById('val-min-particle-width').textContent = minParticleWidth;
+    updateGraphSettings();
+});
+
+nodeScaleTypeSelect.addEventListener('change', (e) => {
+    nodeScaleType = e.target.value;
+    updateGraphSettings();
+});
+
+edgeScaleTypeSelect.addEventListener('change', (e) => {
+    edgeScaleType = e.target.value;
+    updateGraphSettings();
+});
+
+particleScaleTypeSelect.addEventListener('change', (e) => {
+    particleScaleType = e.target.value;
     updateGraphSettings();
 });
 
@@ -411,12 +535,12 @@ particleWidthSelect.addEventListener('change', (e) => {
 });
 
 nodeLabelSizeSlider.addEventListener('input', (e) => {
-    
-    if(currentMode === '3D') {
-        nodeLabelSize = parseInt(e.target.value)*2; // Scale up for 3D visibility
+
+    if (currentMode === '3D') {
+        nodeLabelSize = parseInt(e.target.value) * 2; // Scale up for 3D visibility
     }
-    else{
-        nodeLabelSize = parseInt(e.target.value)*0.7;
+    else {
+        nodeLabelSize = parseInt(e.target.value) * 0.7;
     }
     document.getElementById('val-node-label-size').textContent = nodeLabelSize;
     updateGraphSettings();
@@ -425,7 +549,7 @@ nodeLabelSizeSlider.addEventListener('input', (e) => {
 edgeLabelSizeSlider.addEventListener('input', (e) => {
     edgeLabelSize = parseInt(e.target.value);
 
-    if(currentMode === '3D') {
+    if (currentMode === '3D') {
         edgeLabelSize = edgeLabelSize * 0.5; // Scale up for 3D visibility
     }
     document.getElementById('val-edge-label-size').textContent = edgeLabelSize;
@@ -468,6 +592,145 @@ nodeResolutionSlider.addEventListener('input', (e) => {
     updateGraphSettings();
 });
 
+
+
+// Physics Event Listeners
+chargeStrengthSlider.addEventListener('input', (e) => {
+    chargeStrength = parseInt(e.target.value);
+    document.getElementById('val-charge-strength').textContent = chargeStrength;
+    updatePhysicsSettings();
+});
+
+chargeThetaSlider.addEventListener('input', (e) => {
+    chargeTheta = parseFloat(e.target.value);
+    document.getElementById('val-charge-theta').textContent = chargeTheta;
+    updatePhysicsSettings();
+});
+
+chargeDistMinSlider.addEventListener('input', (e) => {
+    chargeDistMin = parseInt(e.target.value);
+    document.getElementById('val-charge-dist-min').textContent = chargeDistMin;
+    updatePhysicsSettings();
+});
+
+chargeDistMaxSlider.addEventListener('input', (e) => {
+    chargeDistMax = parseInt(e.target.value);
+    document.getElementById('val-charge-dist-max').textContent = chargeDistMax;
+    updatePhysicsSettings();
+});
+
+linkDistanceSlider.addEventListener('input', (e) => {
+    linkDistance = parseInt(e.target.value);
+    document.getElementById('val-link-distance').textContent = linkDistance;
+    updatePhysicsSettings();
+});
+
+linkIterationsSlider.addEventListener('input', (e) => {
+    linkIterations = parseInt(e.target.value);
+    document.getElementById('val-link-iterations').textContent = linkIterations;
+    updatePhysicsSettings();
+});
+
+collideStrengthSlider.addEventListener('input', (e) => {
+    collideStrength = parseFloat(e.target.value);
+    document.getElementById('val-collide-strength').textContent = collideStrength;
+    updatePhysicsSettings();
+});
+
+collideRadiusSlider.addEventListener('input', (e) => {
+    collideRadius = parseFloat(e.target.value);
+    document.getElementById('val-collide-radius').textContent = collideRadius;
+    updatePhysicsSettings();
+});
+
+collideIterationsSlider.addEventListener('input', (e) => {
+    collideIterations = parseInt(e.target.value);
+    document.getElementById('val-collide-iterations').textContent = collideIterations;
+    updatePhysicsSettings();
+});
+
+centerStrengthSlider.addEventListener('input', (e) => {
+    centerStrength = parseFloat(e.target.value);
+    document.getElementById('val-center-strength').textContent = centerStrength;
+    updatePhysicsSettings();
+});
+
+
+function updatePhysicsSettings() {
+    if (!Graph) return;
+
+    // Safety: 3D graph (using d3-force-3d internally) vs 2D graph (using d3-force)
+    // 3d-force-graph exposes d3Force() but we need to be careful about initialization.
+
+    if (currentMode === '3D') {
+        // 3D Physics Updates
+        try {
+            // Check if d3Force method exists (it should for 3d-force-graph)
+            if (Graph.d3Force) {
+                const charge = Graph.d3Force('charge');
+                if (charge) {
+                    charge.strength(chargeStrength)
+                        .theta(chargeTheta)
+                        .distanceMin(chargeDistMin)
+                        .distanceMax(chargeDistMax);
+                }
+
+                const link = Graph.d3Force('link');
+                if (link) {
+                    link.distance(linkDistance)
+                        .iterations(linkIterations);
+                }
+            }
+        } catch (e) { console.warn("3D Force update error", e); }
+    } else {
+        // 2D Mode
+        try {
+            Graph.d3Force('charge').strength(chargeStrength);
+            Graph.d3Force('charge').theta(chargeTheta);
+            Graph.d3Force('charge').distanceMin(chargeDistMin);
+            Graph.d3Force('charge').distanceMax(chargeDistMax);
+
+            Graph.d3Force('link').distance(linkDistance);
+            Graph.d3Force('link').iterations(linkIterations);
+        } catch (e) { console.warn("2D Force update error", e); }
+    }
+
+    if (currentMode === '2D') {
+        // Center force is usually default, but we can tweak it
+        // Graph.d3Force('center').strength(centerStrength); // 'center' force doesn't have strength in standard d3-force, it just centers. 
+        // Actually d3-force-center IS a force. But usually used to center the simulation.
+        // Let's check if we can adjust strength. d3.forceCenter([x, y]).strength(strength) is available in newer d3 versions.
+        // 3d-force-graph uses d3-force-3d which is compatible.
+        try {
+            if (Graph.d3Force('center')) Graph.d3Force('center').strength(centerStrength);
+        } catch (e) { console.log("Center strength not supported"); }
+
+        // Collision
+        // d3-force-3d supports collision? It might be expensive in 3D.
+        // For 2D it's standard d3.forceCollide
+        const col = Graph.d3Force('collide');
+        if (col) {
+            col.strength(collideStrength)
+                .iterations(collideIterations)
+                .radius(node => {
+                    // Calculate radius based on node size
+                    // We need to replicate the node sizing logic here or store it on the node
+                    const val = node[nodeSizeAttribute];
+                    // Re-calc ranges (expensive to do here everytime, but safe)
+                    /* 
+                       Optimization: We are not re-calculating ranges here. 
+                       We assume a roughly correct radius based on current settings.
+                       Let's use a simplified radius for collision to avoid overhead.
+                    */
+                    return (scaleValue(val, 0, 1000000, 2, maxNodeSize) * collideRadius);
+                });
+        }
+    }
+
+    // Reheat simulation to show changes
+    Graph.d3ReheatSimulation();
+}
+
 applyBtn.addEventListener('click', () => {
     if (graphData) {
         // Force full re-init
@@ -504,6 +767,13 @@ function applyDefaults(defaults) {
     maxNodeSize = defaults.maxNodeSize;
     maxEdgeWidth = defaults.maxEdgeWidth;
     maxParticleWidth = defaults.maxParticleWidth;
+
+    minNodeSize = defaults.minNodeSize;
+    minEdgeWidth = defaults.minEdgeWidth;
+    minParticleWidth = defaults.minParticleWidth;
+    nodeScaleType = defaults.nodeScaleType;
+    edgeScaleType = defaults.edgeScaleType;
+    particleScaleType = defaults.particleScaleType;
 
     // 3D-only
     if (currentMode === '3D') {
@@ -547,7 +817,36 @@ function applyDefaults(defaults) {
     document.getElementById('val-max-edge-width').textContent = maxEdgeWidth;
 
     document.getElementById('max-particle-width').value = maxParticleWidth;
-    document.getElementById('val-max-particle-width').textContent = maxParticleWidth;
+    // Set slider values (handling 3D scaling)
+    if (currentMode === '3D') {
+        document.getElementById('max-particle-width').value = maxParticleWidth; // Logic not changed for existing
+        document.getElementById('val-max-particle-width').textContent = maxParticleWidth;
+
+        document.getElementById('min-node-size').value = minNodeSize;
+        document.getElementById('val-min-node-size').textContent = minNodeSize;
+
+        document.getElementById('min-edge-width').value = minEdgeWidth;
+        document.getElementById('val-min-edge-width').textContent = minEdgeWidth;
+
+        document.getElementById('min-particle-width').value = minParticleWidth;
+        document.getElementById('val-min-particle-width').textContent = minParticleWidth;
+    } else {
+        document.getElementById('max-particle-width').value = maxParticleWidth;
+        document.getElementById('val-max-particle-width').textContent = maxParticleWidth;
+
+        document.getElementById('min-node-size').value = minNodeSize;
+        document.getElementById('val-min-node-size').textContent = minNodeSize;
+
+        document.getElementById('min-edge-width').value = minEdgeWidth;
+        document.getElementById('val-min-edge-width').textContent = minEdgeWidth;
+
+        document.getElementById('min-particle-width').value = minParticleWidth;
+        document.getElementById('val-min-particle-width').textContent = minParticleWidth;
+    }
+
+    document.getElementById('node-scale-type').value = nodeScaleType;
+    document.getElementById('edge-scale-type').value = edgeScaleType;
+    document.getElementById('particle-scale-type').value = particleScaleType;
 
     if (currentMode === '3D') {
         document.getElementById('link-opacity').value = linkOpacity;
@@ -717,7 +1016,7 @@ dimBtns.forEach(btn => {
         e.target.classList.add('bg-indigo-600', 'text-white', 'shadow-sm');
         e.target.classList.remove('text-gray-300', 'hover:bg-gray-600');
 
-        
+
 
         switchGraphMode(mode);
         resetSettings()
@@ -879,16 +1178,36 @@ function applyFilter() {
 }
 
 // Helper for min-max scaling
-function scaleValue(value, minVal, maxVal, minSize, maxSize) {
+// Helper for min-max scaling with different scale types
+function scaleValue(value, minVal, maxVal, minSize, maxSize, scaleType = 'linear') {
     if (minVal === maxVal) return (minSize + maxSize) / 2;
-    const val = parseFloat(value);
+    let val = parseFloat(value);
     if (isNaN(val)) return minSize;
 
     // Clamp
     if (val <= minVal) return minSize;
     if (val >= maxVal) return maxSize;
 
-    return minSize + ((val - minVal) / (maxVal - minVal)) * (maxSize - minSize);
+    if (scaleType === 'log') {
+        // Logarithmic scale
+        // Avoid log(0)
+        const logMin = Math.log(minVal > 0 ? minVal : 0.0001);
+        const logMax = Math.log(maxVal > 0 ? maxVal : 0.0001);
+        const logVal = Math.log(val > 0 ? val : 0.0001);
+        // Normalize
+        const normalized = (logVal - logMin) / (logMax - logMin);
+        return minSize + normalized * (maxSize - minSize);
+    } else if (scaleType === 'power') {
+        // Power scale (square root)
+        const powMin = Math.sqrt(minVal);
+        const powMax = Math.sqrt(maxVal);
+        const powVal = Math.sqrt(val);
+        const normalized = (powVal - powMin) / (powMax - powMin);
+        return minSize + normalized * (maxSize - minSize);
+    } else {
+        // Linear
+        return minSize + ((val - minVal) / (maxVal - minVal)) * (maxSize - minSize);
+    }
 }
 
 async function initGraph(data) {
@@ -928,6 +1247,11 @@ async function initGraph(data) {
 
     // Apply all settings
     updateGraphSettings();
+
+    // Safely apply physics settings after graph initialization
+    setTimeout(() => {
+        updatePhysicsSettings();
+    }, 500);
 
     // Event handlers that don't need frequent updates
     Graph
@@ -1026,16 +1350,21 @@ function updateGraphSettings() {
         .nodeVal(node => {
             // Scale node size (radius) based on selected attribute
             if (!nodeSizeAttribute) return 4; // Default constant size
-            return scaleValue(node[nodeSizeAttribute], minNodeVal, maxNodeVal, MIN_NODE_SIZE, maxNodeSize);
+            if (currentMode === '3D') {
+                return scaleValue(node[nodeSizeAttribute], minNodeVal, maxNodeVal, minNodeSize * nodeSizeMultiplier, maxNodeSize * nodeSizeMultiplier, nodeScaleType);
+            }
+            return scaleValue(node[nodeSizeAttribute], minNodeVal, maxNodeVal, minNodeSize, maxNodeSize, nodeScaleType);
         })
         .nodeRelSize(1) // Use nodeVal directly as radius (or close to it)
         .linkWidth(link => {
             // Scale link width based on selected attribute
             let width = 1; // Default thin
-            if (edgeWidthAttribute) {
-                width = scaleValue(link[edgeWidthAttribute], minLinkVal, maxLinkVal, MIN_EDGE_WIDTH, maxEdgeWidth);
+            if (edgeWidthAttribute && currentMode === '2D') {
+                width = scaleValue(link[edgeWidthAttribute], minLinkVal, maxLinkVal, minEdgeWidth, maxEdgeWidth, edgeScaleType);
             }
-
+            if (edgeWidthAttribute && currentMode === '3D') {
+                width = scaleValue(link[edgeWidthAttribute], minLinkVal, maxLinkVal, minEdgeWidth * edgeWidthMultiplier, maxEdgeWidth * edgeWidthMultiplier, edgeScaleType);
+            }
             if (highlightedLinks.has(getLinkId(link))) return width * 2;
             if (hoverLink === link) return width * 2;
             return width;
@@ -1061,7 +1390,12 @@ function updateGraphSettings() {
         .linkDirectionalParticleWidth(link => {
             if (!particleWidthAttribute) return 0;
             // Map selected attribute to particle width
-            return scaleValue(link[particleWidthAttribute], minParticleVal, maxParticleVal, MIN_PARTICLE_WIDTH, maxParticleWidth);
+            if (currentMode === '2D') {
+                return scaleValue(link[particleWidthAttribute], minParticleVal, maxParticleVal, minParticleWidth, maxParticleWidth, particleScaleType);
+            }
+            if (currentMode === '3D') {
+                return scaleValue(link[particleWidthAttribute], minParticleVal, maxParticleVal, minParticleWidth * particleWidthMultiplier, maxParticleWidth * particleWidthMultiplier, particleScaleType);
+            }
         })
         .linkDirectionalParticleSpeed(parseFloat(particleSpeedSlider.value) * 0.0005) // Reduced speed multiplier
         .linkHoverPrecision(5); // Increased precision
@@ -1121,7 +1455,7 @@ function updateGraphSettings() {
                 const sprite = new SpriteText(label);
                 sprite.material.depthWrite = false;
                 sprite.color = (highlightedNodes.size > 0 && !highlightedNodes.has(node.id)) ? 'rgba(100, 100, 100, 0.2)' : '#ffffff';
-                sprite.textHeight = (nodeLabelSize*0.2).toFixed(1); // Scale down for 3D visibility
+                sprite.textHeight = (nodeLabelSize * 0.2).toFixed(1); // Scale down for 3D visibility
                 sprite.center.y = -0.6; // Shift above node (radius is ~4-10, textHeight ~12. 0.5 is center. -0.5 is top edge?)
                 // Actually center.y = 0 is center. 0.5 is bottom, -0.5 is top.
                 // Let's try shifting it up by radius + padding.
@@ -1169,7 +1503,7 @@ function updateGraphSettings() {
             // Draw Node
             let radius = 4;
             if (nodeSizeAttribute) {
-                radius = scaleValue(node[nodeSizeAttribute], minNodeVal, maxNodeVal, MIN_NODE_SIZE, maxNodeSize);
+                radius = scaleValue(node[nodeSizeAttribute], minNodeVal, maxNodeVal, minNodeSize, maxNodeSize, nodeScaleType);
             }
 
             ctx.beginPath();

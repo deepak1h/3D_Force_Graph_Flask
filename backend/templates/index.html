@@ -5,6 +5,10 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>3D Force Graph Visualizer</title>
+  <script>
+    // Polyfill for process (needed by some 3D graph dependencies)
+    window.process = { env: { NODE_ENV: 'production' } };
+  </script>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="//unpkg.com/3d-force-graph"></script>
   <script src="//unpkg.com/force-graph"></script>
@@ -96,6 +100,11 @@
           class="tab-btn flex-1 py-3 text-sm font-medium text-center text-gray-400 hover:text-gray-200 transition-colors"
           data-tab="settings">
           Settings
+        </button>
+        <button
+          class="tab-btn flex-1 py-3 text-sm font-medium text-center text-gray-400 hover:text-gray-200 transition-colors"
+          data-tab="physics">
+          Physics
         </button>
       </div>
 
@@ -228,9 +237,29 @@
             <div>
               <label class="block text-sm font-medium text-gray-400 mb-2">Node Max Size (<span
                   id="val-max-node-size">10</span>)</label>
-              <input type="range" id="max-node-size" min="5" max="50" step="1" value="10"
+              <input type="range" id="max-node-size" min="1" max="50" step="1"
                 class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-indigo-500">
             </div>
+
+            <!-- Node Min Size Scale -->
+            <div>
+              <label class="block text-sm font-medium text-gray-400 mb-2">Node Min Size (<span
+                  id="val-min-node-size">2</span>)</label>
+              <input type="range" id="min-node-size" min="1" max="20" step="1"
+                class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-indigo-500">
+            </div>
+
+            <!-- Node Scale Type -->
+            <div>
+              <label class="block text-sm font-medium text-gray-400 mb-2">Node Scale Type</label>
+              <select id="node-scale-type"
+                class="w-full bg-gray-800 border border-gray-700 text-white rounded-lg focus:ring-indigo-500 focus:border-indigo-500 text-sm p-2.5 transition-colors">
+                <option value="linear" selected>Linear</option>
+                <option value="log">Logarithmic</option>
+                <option value="power">Power</option>
+              </select>
+            </div>
+
 
             <!-- Edge Thickness Attribute -->
             <div>
@@ -252,9 +281,29 @@
             <div>
               <label class="block text-sm font-medium text-gray-400 mb-2">Edge Max Width (<span
                   id="val-max-edge-width">5</span>)</label>
-              <input type="range" id="max-edge-width" min="1" max="20" step="1" value="5"
+              <input type="range" id="max-edge-width" min="1" max="50" step="0.1" value="5"
                 class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-indigo-500">
             </div>
+
+            <!-- Edge Min Width Scale -->
+            <div>
+              <label class="block text-sm font-medium text-gray-400 mb-2">Edge Min Width (<span
+                  id="val-min-edge-width">1</span>)</label>
+              <input type="range" id="min-edge-width" min="0.1" max="10" step="0.1" value="1"
+                class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-indigo-500">
+            </div>
+
+            <!-- Edge Scale Type -->
+            <div>
+              <label class="block text-sm font-medium text-gray-400 mb-2">Edge Scale Type</label>
+              <select id="edge-scale-type"
+                class="w-full bg-gray-800 border border-gray-700 text-white rounded-lg focus:ring-indigo-500 focus:border-indigo-500 text-sm p-2.5 transition-colors">
+                <option value="linear" selected>Linear</option>
+                <option value="log">Logarithmic</option>
+                <option value="power">Power</option>
+              </select>
+            </div>
+
 
             <!-- Node Label Attribute -->
             <div>
@@ -332,9 +381,29 @@
             <div>
               <label class="block text-sm font-medium text-gray-400 mb-2">Particle Max Size (<span
                   id="val-max-particle-width">4</span>)</label>
-              <input type="range" id="max-particle-width" min="1" max="10" step="1" value="4"
+              <input type="range" id="max-particle-width" min="1" max="50" step="0.1" value="4"
                 class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-indigo-500">
             </div>
+
+            <!-- Particle Min Width Scale -->
+            <div>
+              <label class="block text-sm font-medium text-gray-400 mb-2">Particle Min Size (<span
+                  id="val-min-particle-width">1</span>)</label>
+              <input type="range" id="min-particle-width" min="0.5" max="5" step="0.1" value="1"
+                class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-indigo-500">
+            </div>
+
+            <!-- Particle Scale Type -->
+            <div>
+              <label class="block text-sm font-medium text-gray-400 mb-2">Particle Scale Type</label>
+              <select id="particle-scale-type"
+                class="w-full bg-gray-800 border border-gray-700 text-white rounded-lg focus:ring-indigo-500 focus:border-indigo-500 text-sm p-2.5 transition-colors">
+                <option value="linear" selected>Linear</option>
+                <option value="log">Logarithmic</option>
+                <option value="power">Power</option>
+              </select>
+            </div>
+
 
             <!-- Particle Speed -->
             <div>
@@ -424,6 +493,101 @@
               </div>
             </div>
           </div>
+        </div>
+      </div>
+
+      <!-- Physics Tab -->
+      <div id="tab-physics" class="p-4 space-y-6 hidden">
+        <div class="space-y-6">
+
+          <!-- Charge Force -->
+          <div>
+            <h3 class="text-xs font-bold text-indigo-400 uppercase tracking-wider mb-3">Charge Force</h3>
+            <div class="space-y-4">
+              <div>
+                <label class="block text-sm font-medium text-gray-400 mb-1">Strength (<span
+                    id="val-charge-strength">-30</span>)</label>
+                <input type="range" id="charge-strength" min="-1000" max="100" step="10" value="-30"
+                  class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-indigo-500">
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-400 mb-1">Theta (<span
+                    id="val-charge-theta">0.9</span>)</label>
+                <input type="range" id="charge-theta" min="0" max="1" step="0.1" value="0.9"
+                  class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-indigo-500">
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-400 mb-1">Distance Min (<span
+                    id="val-charge-dist-min">1</span>)</label>
+                <input type="range" id="charge-dist-min" min="0" max="100" step="1" value="1"
+                  class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-indigo-500">
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-400 mb-1">Distance Max (<span
+                    id="val-charge-dist-max">2000</span>)</label>
+                <input type="range" id="charge-dist-max" min="0" max="5000" step="100" value="2000"
+                  class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-indigo-500">
+              </div>
+            </div>
+          </div>
+
+          <!-- Link Force -->
+          <div class="pt-4 border-t border-gray-700">
+            <h3 class="text-xs font-bold text-indigo-400 uppercase tracking-wider mb-3">Link Force</h3>
+            <div class="space-y-4">
+              <div>
+                <label class="block text-sm font-medium text-gray-400 mb-1">Distance (<span
+                    id="val-link-distance">30</span>)</label>
+                <input type="range" id="link-distance" min="0" max="200" step="1" value="30"
+                  class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-indigo-500">
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-400 mb-1">Iterations (<span
+                    id="val-link-iterations">1</span>)</label>
+                <input type="range" id="link-iterations" min="0" max="10" step="1" value="1"
+                  class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-indigo-500">
+              </div>
+            </div>
+          </div>
+
+          <!-- Collision Force -->
+          <div class="pt-4 border-t border-gray-700">
+            <h3 class="text-xs font-bold text-indigo-400 uppercase tracking-wider mb-3">Collision Force</h3>
+            <div class="space-y-4">
+              <div>
+                <label class="block text-sm font-medium text-gray-400 mb-1">Strength (<span
+                    id="val-collide-strength">0.7</span>)</label>
+                <input type="range" id="collide-strength" min="0" max="1" step="0.1" value="0.7"
+                  class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-indigo-500">
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-400 mb-1">Radius Multiplier (<span
+                    id="val-collide-radius">1</span>x)</label>
+                <input type="range" id="collide-radius" min="0" max="5" step="0.1" value="1"
+                  class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-indigo-500">
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-400 mb-1">Iterations (<span
+                    id="val-collide-iterations">1</span>)</label>
+                <input type="range" id="collide-iterations" min="0" max="10" step="1" value="1"
+                  class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-indigo-500">
+              </div>
+            </div>
+          </div>
+
+          <!-- Center Force -->
+          <div class="pt-4 border-t border-gray-700">
+            <h3 class="text-xs font-bold text-indigo-400 uppercase tracking-wider mb-3">Center Force</h3>
+            <div class="space-y-4">
+              <div>
+                <label class="block text-sm font-medium text-gray-400 mb-1">Strength (<span
+                    id="val-center-strength">1</span>)</label>
+                <input type="range" id="center-strength" min="0" max="2" step="0.1" value="1"
+                  class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-indigo-500">
+              </div>
+            </div>
+          </div>
+
         </div>
       </div>
 

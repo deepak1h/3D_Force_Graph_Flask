@@ -1794,33 +1794,287 @@ function checkLabelDensity(id) {
 
 // Clustering Elements
 const clusteringAlgorithmSelect = document.getElementById('clustering-algorithm');
-const runClusteringBtn = document.getElementById('run-clustering-btn');
 
-// ... (existing code)
+// Layout Elements
+const layoutModeSelect = document.getElementById('layout-mode');
+const clusterStrengthContainer = document.getElementById('cluster-strength-container');
+const clusterStrengthSlider = document.getElementById('cluster-strength');
+const disjointStrengthContainer = document.getElementById('disjoint-strength-container');
+const disjointStrengthSlider = document.getElementById('disjoint-strength');
 
-// Clustering Event Listener
-runClusteringBtn.addEventListener('click', async () => {
-    const algorithm = clusteringAlgorithmSelect.value;
-    if (!algorithm) {
-        alert('Please select a clustering algorithm');
-        return;
+// Layout State
+let currentLayoutMode = 'default';
+let clusterStrength = 0.3;
+let disjointStrength = 0.05;
+let clusteringActive = false; // Whether clustering has been applied
+
+// --- Custom Force: Cluster Attraction ---
+// Pulls nodes toward the centroid of their cluster
+function forceCluster(strength) {
+    let nodes;
+    function force(alpha) {
+        // Compute centroids
+        const centroids = {};
+        const counts = {};
+        for (const n of nodes) {
+            if (n.cluster === undefined) continue;
+            const c = n.cluster;
+            if (!centroids[c]) { centroids[c] = { x: 0, y: 0, z: 0 }; counts[c] = 0; }
+            centroids[c].x += n.x || 0;
+            centroids[c].y += n.y || 0;
+            centroids[c].z += n.z || 0;
+            counts[c]++;
+        }
+        for (const c in centroids) {
+            centroids[c].x /= counts[c];
+            centroids[c].y /= counts[c];
+            centroids[c].z /= counts[c];
+        }
+        // Nudge nodes toward their cluster centroid
+        for (const n of nodes) {
+            if (n.cluster === undefined) continue;
+            const cent = centroids[n.cluster];
+            n.vx += (cent.x - n.x) * strength * alpha;
+            n.vy += (cent.y - n.y) * strength * alpha;
+            if (n.vz !== undefined) {
+                n.vz += (cent.z - n.z) * strength * alpha;
+            }
+        }
     }
+    force.initialize = function (_nodes) { nodes = _nodes; };
+    force.strength = function (_) { if (_ !== undefined) { strength = _; return force; } return strength; };
+    return force;
+}
+
+// --- Custom Force: Cluster Separation ---
+// Pushes cluster centroids apart from each other
+function forceClusterSeparation(strength) {
+    let nodes;
+    function force(alpha) {
+        const centroids = {};
+        const counts = {};
+        for (const n of nodes) {
+            if (n.cluster === undefined) continue;
+            const c = n.cluster;
+            if (!centroids[c]) { centroids[c] = { x: 0, y: 0, z: 0 }; counts[c] = 0; }
+            centroids[c].x += n.x || 0;
+            centroids[c].y += n.y || 0;
+            centroids[c].z += n.z || 0;
+            counts[c]++;
+        }
+        for (const c in centroids) {
+            centroids[c].x /= counts[c];
+            centroids[c].y /= counts[c];
+            centroids[c].z /= counts[c];
+        }
+        // Push centroids apart
+        const clusterIds = Object.keys(centroids);
+        for (let i = 0; i < clusterIds.length; i++) {
+            for (let j = i + 1; j < clusterIds.length; j++) {
+                const a = centroids[clusterIds[i]];
+                const b = centroids[clusterIds[j]];
+                const dx = a.x - b.x;
+                const dy = a.y - b.y;
+                const dz = a.z - b.z;
+                const dist = Math.sqrt(dx * dx + dy * dy + dz * dz) || 1;
+                const minDist = 150; // Minimum distance between cluster centroids
+                if (dist < minDist) {
+                    const push = ((minDist - dist) / dist) * strength * alpha;
+                    const fx = dx * push;
+                    const fy = dy * push;
+                    const fz = dz * push;
+                    // Apply to all nodes in each cluster
+                    for (const n of nodes) {
+                        if (n.cluster == clusterIds[i]) {
+                            n.vx += fx; n.vy += fy;
+                            if (n.vz !== undefined) n.vz += fz;
+                        } else if (n.cluster == clusterIds[j]) {
+                            n.vx -= fx; n.vy -= fy;
+                            if (n.vz !== undefined) n.vz -= fz;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    force.initialize = function (_nodes) { nodes = _nodes; };
+    force.strength = function (_) { if (_ !== undefined) { strength = _; return force; } return strength; };
+    return force;
+}
+
+// --- Layout Mode UI Handlers ---
+
+layoutModeSelect.addEventListener('change', (e) => {
+    const mode = e.target.value;
+
+    // Show/hide relevant controls
+    clusterStrengthContainer.classList.toggle('hidden',
+        mode !== 'cluster-grouped' && mode !== 'radial-cluster');
+    disjointStrengthContainer.classList.toggle('hidden', mode !== 'disjoint');
+
+    // Auto-apply layout on selection
+    applyLayoutMode(mode);
+});
+
+clusterStrengthSlider.addEventListener('input', (e) => {
+    clusterStrength = parseFloat(e.target.value);
+    document.getElementById('val-cluster-strength').textContent = clusterStrength;
+    // Live update if layout is active
+    if (Graph && currentLayoutMode === 'cluster-grouped') {
+        try {
+            const cf = Graph.d3Force('cluster');
+            if (cf && cf.strength) cf.strength(clusterStrength);
+            Graph.d3ReheatSimulation();
+        } catch (err) { console.warn('Cluster strength update error', err); }
+    }
+});
+
+disjointStrengthSlider.addEventListener('input', (e) => {
+    disjointStrength = parseFloat(e.target.value);
+    document.getElementById('val-disjoint-strength').textContent = disjointStrength;
+    // Live update
+    if (Graph && currentLayoutMode === 'disjoint') {
+        try {
+            const fx = Graph.d3Force('forceX');
+            const fy = Graph.d3Force('forceY');
+            if (fx && fx.strength) fx.strength(disjointStrength);
+            if (fy && fy.strength) fy.strength(disjointStrength);
+            Graph.d3ReheatSimulation();
+        } catch (err) { console.warn('Disjoint strength update error', err); }
+    }
+});
+
+// Layout is now auto-applied on dropdown change
+
+function applyLayoutMode(mode) {
+    if (!Graph || !graphData) return;
+
+    currentLayoutMode = mode;
+
+    // Remove custom forces first
+    try {
+        Graph.d3Force('cluster', null);
+        Graph.d3Force('clusterSeparation', null);
+        Graph.d3Force('forceX', null);
+        Graph.d3Force('forceY', null);
+        Graph.d3Force('forceRadial', null);
+    } catch (e) { /* Some forces may not exist */ }
+
+    if (mode === 'default') {
+        // Standard force-directed — just reheat
+        Graph.d3ReheatSimulation();
+
+    } else if (mode === 'cluster-grouped') {
+        // Cluster-Grouped: attract same-cluster nodes, separate clusters
+        if (!clusteringActive) {
+            alert('Please run clustering first before using Cluster-Grouped layout.');
+            layoutModeSelect.value = 'default';
+            return;
+        }
+
+        Graph.d3Force('cluster', forceCluster(clusterStrength));
+        Graph.d3Force('clusterSeparation', forceClusterSeparation(0.5));
+        Graph.d3ReheatSimulation();
+
+    } else if (mode === 'radial-cluster') {
+        // Radial by Cluster: arrange clusters in concentric rings
+        if (!clusteringActive) {
+            alert('Please run clustering first before using Radial layout.');
+            layoutModeSelect.value = 'default';
+            return;
+        }
+
+        // Assign radial target based on cluster
+        const uniqueClusters = [...new Set(graphData.nodes.map(n => n.cluster).filter(c => c !== undefined))].sort((a, b) => a - b);
+        const ringSpacing = 150;
+        const clusterRadiusMap = {};
+        uniqueClusters.forEach((c, i) => {
+            clusterRadiusMap[c] = (i + 1) * ringSpacing;
+        });
+
+        // Use forceRadial (d3-force)
+        // Since d3Force expects a d3 force function, we'll use forceX/Y to simulate radial placement
+        // Or we can add a custom radial force
+        Graph.d3Force('cluster', forceCluster(clusterStrength * 0.5));
+
+        // Add radial positioning — push nodes to their cluster's ring radius
+        const radialForce = function (strength) {
+            let nodes;
+            function force(alpha) {
+                for (const n of nodes) {
+                    if (n.cluster === undefined) continue;
+                    const targetRadius = clusterRadiusMap[n.cluster] || 100;
+                    const dist = Math.sqrt((n.x || 0) ** 2 + (n.y || 0) ** 2) || 1;
+                    const factor = (targetRadius - dist) / dist * strength * alpha;
+                    n.vx += (n.x || 0) * factor;
+                    n.vy += (n.y || 0) * factor;
+                }
+            }
+            force.initialize = function (_nodes) { nodes = _nodes; };
+            return force;
+        };
+
+        Graph.d3Force('forceRadial', radialForce(0.3));
+        Graph.d3ReheatSimulation();
+
+    } else if (mode === 'disjoint') {
+        // Disjoint: pull all nodes gently toward center so disconnected components don't fly away
+        // This uses forceX and forceY with weak strength
+
+        // Use custom x/y forces
+        const forceXFn = function (strength) {
+            let nodes;
+            function force(alpha) {
+                for (const n of nodes) {
+                    n.vx += (0 - (n.x || 0)) * strength * alpha;
+                }
+            }
+            force.initialize = function (_nodes) { nodes = _nodes; };
+            force.strength = function (_) { if (_ !== undefined) { strength = _; return force; } return strength; };
+            return force;
+        };
+
+        const forceYFn = function (strength) {
+            let nodes;
+            function force(alpha) {
+                for (const n of nodes) {
+                    n.vy += (0 - (n.y || 0)) * strength * alpha;
+                }
+            }
+            force.initialize = function (_nodes) { nodes = _nodes; };
+            force.strength = function (_) { if (_ !== undefined) { strength = _; return force; } return strength; };
+            return force;
+        };
+
+        Graph.d3Force('forceX', forceXFn(disjointStrength));
+        Graph.d3Force('forceY', forceYFn(disjointStrength));
+
+        // If clustering is active, also add cluster force
+        if (clusteringActive) {
+            Graph.d3Force('cluster', forceCluster(clusterStrength * 0.5));
+        }
+
+        Graph.d3ReheatSimulation();
+    }
+}
+
+// Clustering Event Listener — auto-trigger on dropdown change
+clusteringAlgorithmSelect.addEventListener('change', async (e) => {
+    const algorithm = e.target.value;
+    if (!algorithm) return; // "Select Algorithm" placeholder
 
     if (!graphData) {
         alert('No graph data loaded');
+        clusteringAlgorithmSelect.value = '';
         return;
     }
 
-    // Show loading state
-    const originalText = runClusteringBtn.innerHTML;
-    runClusteringBtn.innerHTML = '<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> Processing...';
-    runClusteringBtn.disabled = true;
+    // Show loading state on the dropdown
+    clusteringAlgorithmSelect.disabled = true;
+    const originalOption = clusteringAlgorithmSelect.options[clusteringAlgorithmSelect.selectedIndex].text;
+    clusteringAlgorithmSelect.options[clusteringAlgorithmSelect.selectedIndex].text = '⏳ Processing...';
 
     try {
-        // Prepare data for backend
-        // We only need nodes (id) and links (source, target)
-        // Note: graphData.links might have object references for source/target after D3 init, 
-        // ensuring we send IDs.
         const payload = {
             nodes: graphData.nodes.map(n => ({ id: n.id })),
             links: graphData.links.map(l => ({
@@ -1832,9 +2086,7 @@ runClusteringBtn.addEventListener('click', async () => {
 
         const response = await fetch('/api/cluster', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
         });
 
@@ -1853,10 +2105,8 @@ runClusteringBtn.addEventListener('click', async () => {
         console.error('Clustering error:', error);
         alert(`Clustering failed: ${error.message}`);
     } finally {
-        // Restore button state
-        runClusteringBtn.innerHTML = originalText;
-        runClusteringBtn.disabled = false;
-        lucide.createIcons();
+        clusteringAlgorithmSelect.options[clusteringAlgorithmSelect.selectedIndex].text = originalOption;
+        clusteringAlgorithmSelect.disabled = false;
     }
 });
 
@@ -1867,6 +2117,8 @@ function applyClustering(clusters) {
             node.cluster = clusters[node.id];
         }
     });
+
+    clusteringActive = true;
 
     // Add 'cluster' to node color options if not present
     let optionExists = false;
@@ -1885,7 +2137,7 @@ function applyClustering(clusters) {
     nodeColorSelect.value = 'cluster';
     nodeColorAttribute = 'cluster';
 
-    // Update graph
+    // Update graph colors
     if (Graph) {
         const values = [...new Set(Object.values(clusters))].sort((a, b) => a - b);
         const colors = generateColors(values.length);
@@ -1897,10 +2149,10 @@ function applyClustering(clusters) {
             return colorMap[node.cluster] || '#9ca3af';
         });
 
-        // Re-render
-        Graph.d3ReheatSimulation();
+        // Auto-apply cluster-grouped layout after clustering
+        layoutModeSelect.value = 'cluster-grouped';
+        clusterStrengthContainer.classList.remove('hidden');
+        disjointStrengthContainer.classList.add('hidden');
+        applyLayoutMode('cluster-grouped');
     }
-
-    // Show success message (optional, or just relies on visual change)
-    // alert(`Clustering complete. Found ${new Set(Object.values(clusters)).size} communities.`);
 }

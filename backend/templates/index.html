@@ -180,15 +180,42 @@
                   <option value="mcl">Markov Clustering (MCL)</option>
                   <option value="greedy">Greedy Modularity</option>
                 </select>
-                <button id="run-clustering-btn"
-                  class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2">
-                  <i data-lucide="cpu" class="w-4 h-4"></i>
-                  Run Clustering
-                </button>
+              </div>
+            </div>
+
+            <!-- Layout Section -->
+            <div class="filter-section pt-4 border-t border-gray-700">
+              <h3 class="text-xs font-bold text-indigo-400 uppercase tracking-wider mb-3">Layout</h3>
+              <div class="space-y-3">
+                <select id="layout-mode"
+                  class="w-full bg-gray-800 border border-gray-700 text-white rounded-lg focus:ring-indigo-500 focus:border-indigo-500 text-sm p-2.5 transition-colors">
+                  <option value="default">Force-Directed (Default)</option>
+                  <option value="cluster-grouped">Cluster-Grouped</option>
+                  <option value="radial-cluster">Radial by Cluster</option>
+                  <option value="disjoint">Disjoint (Compact)</option>
+                </select>
+
+                <!-- Cluster Force Strength -->
+                <div id="cluster-strength-container" class="hidden">
+                  <label class="block text-sm font-medium text-gray-400 mb-1">Cluster Strength (<span
+                      id="val-cluster-strength">0.3</span>)</label>
+                  <input type="range" id="cluster-strength" min="0" max="1" step="0.05" value="0.3"
+                    class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-indigo-500">
+                </div>
+
+                <!-- Disjoint Strength -->
+                <div id="disjoint-strength-container" class="hidden">
+                  <label class="block text-sm font-medium text-gray-400 mb-1">Center Pull (<span
+                      id="val-disjoint-strength">0.05</span>)</label>
+                  <input type="range" id="disjoint-strength" min="0" max="0.5" step="0.01" value="0.05"
+                    class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-indigo-500">
+                </div>
+
               </div>
             </div>
           </div>
         </div>
+
 
         <!-- Settings Tab -->
         <div id="tab-settings" class="p-4 space-y-6 hidden">
@@ -528,7 +555,7 @@
               <div>
                 <label class="block text-sm font-medium text-gray-400 mb-1">Strength (<span
                     id="val-charge-strength">-30</span>)</label>
-                <input type="range" id="charge-strength" min="-1000" max="100" step="10" value="-30"
+                <input type="range" id="charge-strength" min="-100" max="100" step="1" value="-10"
                   class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-indigo-500">
               </div>
               <div>
@@ -565,7 +592,7 @@
               <div>
                 <label class="block text-sm font-medium text-gray-400 mb-1">Iterations (<span
                     id="val-link-iterations">1</span>)</label>
-                <input type="range" id="link-iterations" min="0" max="10" step="1" value="1"
+                <input type="range" id="link-iterations" min="0" max="200" step="1" value="1"
                   class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-indigo-500">
               </div>
             </div>
@@ -590,7 +617,7 @@
               <div>
                 <label class="block text-sm font-medium text-gray-400 mb-1">Iterations (<span
                     id="val-collide-iterations">1</span>)</label>
-                <input type="range" id="collide-iterations" min="0" max="10" step="1" value="1"
+                <input type="range" id="collide-iterations" min="0" max="200" step="1" value="1"
                   class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-indigo-500">
               </div>
             </div>
@@ -603,7 +630,7 @@
               <div>
                 <label class="block text-sm font-medium text-gray-400 mb-1">Strength (<span
                     id="val-center-strength">1</span>)</label>
-                <input type="range" id="center-strength" min="0" max="2" step="0.1" value="1"
+                <input type="range" id="center-strength" min="-10" max="10" step="0.1" value="1"
                   class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-indigo-500">
               </div>
             </div>

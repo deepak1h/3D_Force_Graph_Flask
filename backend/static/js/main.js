@@ -705,24 +705,23 @@ function updatePhysicsSettings() {
             if (Graph.d3Force('center')) Graph.d3Force('center').strength(centerStrength);
         } catch (e) { console.log("Center strength not supported"); }
 
-        // Collision
-        // d3-force-3d supports collision? It might be expensive in 3D.
-        // For 2D it's standard d3.forceCollide
+        // Collision — Size-aware: use actual node value ranges + padding
         const col = Graph.d3Force('collide');
         if (col) {
+            // Compute actual min/max from data for proper scaling
+            const nodeVals = graphData.nodes.map(n => parseFloat(n[nodeSizeAttribute])).filter(v => !isNaN(v));
+            const colMinVal = nodeVals.length ? Math.min(...nodeVals) : 0;
+            const colMaxVal = nodeVals.length ? Math.max(...nodeVals) : 1;
+            const padding = 3; // Extra buffer to prevent visual overlap
+
             col.strength(collideStrength)
                 .iterations(collideIterations)
                 .radius(node => {
-                    // Calculate radius based on node size
-                    // We need to replicate the node sizing logic here or store it on the node
-                    const val = node[nodeSizeAttribute];
-                    // Re-calc ranges (expensive to do here everytime, but safe)
-                    /* 
-                       Optimization: We are not re-calculating ranges here. 
-                       We assume a roughly correct radius based on current settings.
-                       Let's use a simplified radius for collision to avoid overhead.
-                    */
-                    return (scaleValue(val, 0, 1000000, 2, maxNodeSize) * collideRadius);
+                    const val = parseFloat(node[nodeSizeAttribute]);
+                    const baseRadius = isNaN(val)
+                        ? minNodeSize
+                        : scaleValue(val, colMinVal, colMaxVal, minNodeSize, maxNodeSize, nodeScaleType);
+                    return (baseRadius + padding) * collideRadius;
                 });
         }
     }
@@ -977,16 +976,92 @@ fullscreenBtn.addEventListener('click', () => {
     }
 });
 
+// --- Spread Nodes (Post-layout overlap removal) ---
+const spreadBtn = document.getElementById('spread-btn');
+spreadBtn.addEventListener('click', () => {
+    if (!Graph || !graphData) return;
+    spreadNodesRemoveOverlaps();
+    pauseBtn.click();
+});
+
+function spreadNodesRemoveOverlaps() {
+    const nodes = graphData.nodes;
+    if (!nodes || nodes.length < 2) return;
+
+    // Compute each node's visual radius
+    const nodeVals = nodes.map(n => parseFloat(n[nodeSizeAttribute])).filter(v => !isNaN(v));
+    const sMinVal = nodeVals.length ? Math.min(...nodeVals) : 0;
+    const sMaxVal = nodeVals.length ? Math.max(...nodeVals) : 1;
+
+    function getRadius(node) {
+        const val = parseFloat(node[nodeSizeAttribute]);
+        if (isNaN(val)) return minNodeSize + 2;
+        return scaleValue(val, sMinVal, sMaxVal, minNodeSize, maxNodeSize, nodeScaleType) + 4;
+    }
+
+    // Iterative pairwise overlap removal
+    const iterations = 100;
+    const damping = 0.5;
+
+    for (let iter = 0; iter < iterations; iter++) {
+        let moved = false;
+        for (let i = 0; i < nodes.length; i++) {
+            for (let j = i + 1; j < nodes.length; j++) {
+                const a = nodes[i];
+                const b = nodes[j];
+                if (a.x === undefined || b.x === undefined) continue;
+
+                const dx = b.x - a.x;
+                const dy = b.y - a.y;
+                const dist = Math.sqrt(dx * dx + dy * dy) || 0.01;
+                const minDist = getRadius(a) + getRadius(b);
+
+                if (dist < minDist) {
+                    const overlap = (minDist - dist) / 2;
+                    const moveX = (dx / dist) * overlap * damping;
+                    const moveY = (dy / dist) * overlap * damping;
+
+                    a.x -= moveX;
+                    a.y -= moveY;
+                    b.x += moveX;
+                    b.y += moveY;
+
+                    // Fix positions so simulation doesn't undo the spread
+                    a.fx = a.x;
+                    a.fy = a.y;
+                    b.fx = b.x;
+                    b.fy = b.y;
+
+                    moved = true;
+                }
+            }
+        }
+        if (!moved) break; // No overlaps remain
+    }
+
+    // Update the graph to reflect new positions
+    Graph.graphData(graphData);
+    updateGraphSettings();
+
+    // After a short delay, unfix nodes so simulation can resume if desired
+    setTimeout(() => {
+        if (!fixNodes) {
+            nodes.forEach(n => {
+                n.fx = undefined;
+                n.fy = undefined;
+            });
+        }
+    }, 2000);
+}
+
 pauseBtn.addEventListener('click', () => {
     if (Graph) {
         if (isPaused) {
-            if (currentMode === '2D') Graph.d3ReheatSimulation();
-            else Graph.resumeAnimation();
+            Graph.resumeAnimation();
             pauseBtn.innerHTML = '<i data-lucide="pause" class="w-5 h-5"></i>';
             pauseBtn.title = "Pause Simulation";
         } else {
-            if (currentMode === '2D') Graph.d3StopSimulation();
-            else Graph.pauseAnimation();
+            Graph.pauseAnimation();
             pauseBtn.innerHTML = '<i data-lucide="play" class="w-5 h-5"></i>';
             pauseBtn.title = "Resume Simulation";
         }

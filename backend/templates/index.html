@@ -26,12 +26,13 @@
       <!-- 2D/3D Toggle -->
       <div class="flex bg-gray-700 rounded-lg p-1">
         <button
-          class="dim-btn px-3 py-1 text-xs font-bold rounded-md transition-all duration-200 hover:bg-gray-600 text-gray-300"
+          class="dim-btn px-3 py-1 text-xs font-bold rounded-md transition-all duration-200 bg-indigo-600 text-white shadow-sm"
           data-value="2">2D</button>
         <button
-          class="dim-btn px-3 py-1 text-xs font-bold rounded-md transition-all duration-200 bg-indigo-600 text-white shadow-sm"
+          class="dim-btn px-3 py-1 text-xs font-bold rounded-md transition-all duration-200 hover:bg-gray-600 text-gray-300"
           data-value="3">3D</button>
       </div>
+    </div>
     </div>
     <div class="flex items-center space-x-3">
       <button id="new-file-btn"
@@ -175,7 +176,7 @@
                 <select id="clustering-algorithm"
                   class="w-full bg-gray-800 border border-gray-700 text-white rounded-lg focus:ring-indigo-500 focus:border-indigo-500 text-sm p-2.5 transition-colors">
                   <option value="">Select Algorithm</option>
-                  <option value="louvain">Louvain (Standard)</option>
+                  <option value="louvain" selected>Louvain (Standard)</option>
                   <option value="leiden">Leiden (Robust)</option>
                   <option value="mcl">Markov Clustering (MCL)</option>
                   <option value="greedy">Greedy Modularity</option>
@@ -192,7 +193,7 @@
                   <option value="default">Force-Directed (Default)</option>
                   <option value="cluster-grouped">Cluster-Grouped</option>
                   <option value="radial-cluster">Radial by Cluster</option>
-                  <option value="disjoint">Disjoint (Compact)</option>
+                  <option value="disjoint" selected>Disjoint (Compact)</option>
                 </select>
 
                 <!-- Cluster Force Strength -->
@@ -204,7 +205,7 @@
                 </div>
 
                 <!-- Disjoint Strength -->
-                <div id="disjoint-strength-container" class="hidden">
+                <div id="disjoint-strength-container">
                   <label class="block text-sm font-medium text-gray-400 mb-1">Center Pull (<span
                       id="val-disjoint-strength">0.05</span>)</label>
                   <input type="range" id="disjoint-strength" min="0" max="0.5" step="0.01" value="0.05"
@@ -403,6 +404,7 @@
                 <option value="division">Division</option>
                 <option value="circle">Circle</option>
                 <option value="zone">Zone</option>
+                <option value="shape">Shape</option>
               </select>
             </div>
 

@@ -6,10 +6,10 @@ let highlightedLinks = new Set();
 let hoverNode = null;
 let hoverLink = null;
 let isSelectionActive = false;
-let currentMode = '3D'; // '2D' or '3D'
+let currentMode = '2D'; // '2D' or '3D'
 let activeFilter = { type: null, value: null }; // { type: 'division'|'circle'|'zone'|'edge', value: '...' }
 let fixNodes = false;
-let nodeColorAttribute = 'division';
+let nodeColorAttribute = 'shape';
 let hoverEnabled = true;
 let labelDensity = 0.1;
 let nodeSizeAttribute = 'amount';
@@ -394,7 +394,7 @@ nodeColorSelect.addEventListener('change', (e) => {
 
         Graph.nodeColor(node => {
             if (highlightedNodes.size > 0 && !highlightedNodes.has(node.id)) return 'rgba(100, 100, 100, 0.2)';
-            return colorMap[node[nodeColorAttribute]] || '#9ca3af';
+            return colorMap[node[nodeColorAttribute]] || '#9daf9cff';
         });
     }
 });
@@ -1084,6 +1084,14 @@ dimBtns.forEach(btn => {
 
         if (currentMode === mode) return;
 
+        // Block 3D if graph has more than 1500 nodes
+        if (mode === '3D' && graphData && graphData.nodes.length > 1500) {
+            const count = graphData.nodes.length;
+            // Flash a warning on the button tooltip and show a banner
+            showTemporaryWarning(`⚠️ 3D disabled — graph has ${count.toLocaleString()} nodes (limit: 1500). Use 2D for performance.`);
+            return;
+        }
+
         dimBtns.forEach(b => {
             b.classList.remove('bg-indigo-600', 'text-white', 'shadow-sm');
             b.classList.add('text-gray-300', 'hover:bg-gray-600');
@@ -1091,12 +1099,29 @@ dimBtns.forEach(btn => {
         e.target.classList.add('bg-indigo-600', 'text-white', 'shadow-sm');
         e.target.classList.remove('text-gray-300', 'hover:bg-gray-600');
 
-
-
         switchGraphMode(mode);
-        resetSettings()
+        resetSettings();
     });
 });
+
+function showTemporaryWarning(message) {
+    // Create or reuse a warning banner
+    let banner = document.getElementById('perf-warning-banner');
+    if (!banner) {
+        banner = document.createElement('div');
+        banner.id = 'perf-warning-banner';
+        banner.className = 'absolute top-4 left-1/2 -translate-x-1/2 z-50 bg-amber-600 text-white text-sm font-medium px-4 py-2 rounded-lg shadow-lg flex items-center gap-2 transition-all duration-300';
+        banner.innerHTML = '<i data-lucide="alert-triangle" class="w-4 h-4 shrink-0"></i><span id="perf-warning-text"></span>';
+        document.querySelector('main').appendChild(banner);
+    }
+    document.getElementById('perf-warning-text').textContent = message;
+    banner.classList.remove('opacity-0', 'pointer-events-none');
+    lucide.createIcons();
+    clearTimeout(banner._hideTimer);
+    banner._hideTimer = setTimeout(() => {
+        banner.classList.add('opacity-0', 'pointer-events-none');
+    }, 4000);
+}
 
 
 // --- Functions ---
@@ -1132,6 +1157,27 @@ async function handleFile(file) {
         initGraph(graphData);
         populateFilters(graphData);
         lucide.createIcons();
+
+        // Warn if 3D is impractical for this graph size
+        if (graphData.nodes.length > 1500) {
+            // Mark the 3D button as disabled-looking
+            dimBtns.forEach(b => {
+                if (b.dataset.value === '3') {
+                    b.title = `3D disabled — ${graphData.nodes.length.toLocaleString()} nodes exceeds 1500 node limit`;
+                    b.classList.add('opacity-40', 'cursor-not-allowed');
+                }
+            });
+        } else {
+            dimBtns.forEach(b => {
+                if (b.dataset.value === '3') {
+                    b.title = '3D View';
+                    b.classList.remove('opacity-40', 'cursor-not-allowed');
+                }
+            });
+        }
+
+        // Auto-run Louvain clustering + Disjoint layout as defaults
+        setTimeout(() => autoRunDefaultClustering(), 800);
 
     } catch (e) {
         errorMessage.textContent = e.message;
@@ -2185,7 +2231,45 @@ clusteringAlgorithmSelect.addEventListener('change', async (e) => {
     }
 });
 
+// Auto-run on file load: Louvain clustering + Disjoint layout
+async function autoRunDefaultClustering() {
+    if (!graphData || !Graph) return;
+
+    try {
+        const payload = {
+            nodes: graphData.nodes.map(n => ({ id: n.id })),
+            links: graphData.links.map(l => ({
+                source: typeof l.source === 'object' ? l.source.id : l.source,
+                target: typeof l.target === 'object' ? l.target.id : l.target
+            })),
+            algorithm: 'louvain'
+        };
+
+        const response = await fetch('/api/cluster', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        if (response.ok) {
+            const result = await response.json();
+            if (result.clusters) {
+                applyClustering(result.clusters);
+            }
+        }
+    } catch (err) {
+        console.warn('Auto-clustering failed, applying layout only:', err);
+    }
+
+    // Always apply Disjoint layout
+    layoutModeSelect.value = 'disjoint';
+    clusterStrengthContainer.classList.add('hidden');
+    disjointStrengthContainer.classList.remove('hidden');
+    applyLayoutMode('disjoint');
+}
+
 function applyClustering(clusters) {
+
     // Update graphData nodes with cluster info
     graphData.nodes.forEach(node => {
         if (clusters[node.id] !== undefined) {

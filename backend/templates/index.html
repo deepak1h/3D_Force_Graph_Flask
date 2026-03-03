@@ -237,7 +237,7 @@
               <div class="space-y-3">
                 <select id="layout-mode"
                   class="w-full bg-gray-800 border border-gray-700 text-white rounded-lg focus:ring-indigo-500 focus:border-indigo-500 text-sm p-2.5 transition-colors">
-                  <option value="default">Force-Directed (Default)</option>
+                  <option value="force-directed">Force-Directed</option>
                   <option value="cluster-grouped">Cluster-Grouped</option>
                   <option value="radial-cluster">Radial by Cluster</option>
                   <option value="disjoint" selected>Disjoint (Compact)</option>
@@ -651,8 +651,8 @@
               <div>
                 <label class="block text-sm font-medium text-gray-400 mb-1">Iterations (<span
                     id="val-link-iterations">1</span>)</label>
-                <input type="range" id="link-iterations" min="0" max="200" step="1" value="1"
-                  class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-indigo-500">
+                <input type="range" id="link-iterations" min="0" max="200" step="1" value="5"
+                  class=" w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-indigo-500">
               </div>
             </div>
           </div>

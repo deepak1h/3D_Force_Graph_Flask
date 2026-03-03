@@ -52,7 +52,7 @@ let chargeTheta = 0.9;
 let chargeDistMin = 1;
 let chargeDistMax = 1000;
 let linkDistance = 30;
-let linkIterations = 1;
+let linkIterations = 5;
 let collideStrength = 0.7;
 let collideRadius = 1;
 let collideIterations = 1;
@@ -109,7 +109,7 @@ const DEFAULTS_2D = {
     chargeDistMin: 1,
     chargeDistMax: 1000,
     linkDistance: 30,
-    linkIterations: 1,
+    linkIterations: 5,
     collideStrength: 0.7,
     collideRadius: 1,
     collideIterations: 1,
@@ -169,7 +169,7 @@ const DEFAULTS_3D = {
     chargeDistMin: 1,
     chargeDistMax: 2000,
     linkDistance: 30,
-    linkIterations: 1,
+    linkIterations: 5,
     collideStrength: 0.7,
     collideRadius: 1,
     collideIterations: 1,
@@ -2278,7 +2278,7 @@ function applyLayoutMode(mode) {
         Graph.d3Force('forceRadial', null);
     } catch (e) { /* Some forces may not exist */ }
 
-    if (mode === 'default') {
+    if (mode === 'force-directed') {
         // Standard force-directed — just reheat
         Graph.d3ReheatSimulation();
 

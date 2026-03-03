@@ -2,6 +2,7 @@ from flask import Flask, send_from_directory, render_template, request, jsonify
 import os
 import json
 import xml.etree.ElementTree as ET
+import scipy.sparse as sp
 
 app = Flask(__name__, static_folder='static', template_folder='templates')
 
@@ -149,10 +150,15 @@ def apply_clustering(graph_data, algorithm):
         elif algorithm == 'mcl':
             # Markov Clustering
             if not mcl: raise ImportError("Markov Clustering not available")
-            if not nx: raise ImportError("NetworkX not available")
+            if not nx: raise ImportError("NetworkX not available")  
+
             
-            # Get adjacency matrix
+
             matrix = nx.to_scipy_sparse_array(G)
+
+            # Critical conversions
+            matrix = sp.csr_matrix(matrix)
+            matrix = matrix.astype(float)   
             
             # Run MCL
             result = mcl.run_mcl(matrix)

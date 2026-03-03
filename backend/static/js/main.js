@@ -65,6 +65,14 @@ const DEFAULTS_2D = {
     showEdges: true,
     labelDensity: 0.2,
 
+    // Layout & Clustering defaults
+    dagMode: '',
+    layoutMode: 'disjoint',
+    clusterStrength: 0.3,
+    disjointStrength: 0.05,
+    clusteringAlgorithm: 'louvain',
+    clusterBins: 5,
+
     nodeSizeAttribute: 'amount',
     edgeWidthAttribute: 'Assesment Amount',
     particleWidthAttribute: 'Assesment Amount',
@@ -116,6 +124,14 @@ const DEFAULTS_3D = {
     hoverEnabled: true,
     showEdges: true,
     labelDensity: 0.1,
+
+    // Layout & Clustering defaults
+    dagMode: '',
+    layoutMode: 'disjoint',
+    clusterStrength: 0.3,
+    disjointStrength: 0.05,
+    clusteringAlgorithm: 'louvain',
+    clusterBins: 5,
 
     nodeSizeAttribute: 'amount',
     edgeWidthAttribute: 'Assesment Amount',
@@ -316,16 +332,13 @@ tabBtns.forEach(btn => {
         tabFilters.classList.add('hidden');
         tabSettings.classList.add('hidden');
         tabPhysics.classList.add('hidden');
-        settingsFooter.classList.add('hidden');
 
         if (tab === 'filters') {
             tabFilters.classList.remove('hidden');
         } else if (tab === 'settings') {
             tabSettings.classList.remove('hidden');
-            settingsFooter.classList.remove('hidden');
         } else if (tab === 'physics') {
             tabPhysics.classList.remove('hidden');
-            settingsFooter.classList.remove('hidden'); // Reuse footer for Reset/Apply if needed, or maybe not needed for physics? Let's keep it.
         }
     });
 });
@@ -751,11 +764,28 @@ function updatePhysicsSettings() {
 
 applyBtn.addEventListener('click', () => {
     if (graphData) {
-        // Force full re-init
-        Graph = null;
-        const graphContainer = document.getElementById('graph-container');
-        graphContainer.innerHTML = ''; // Clear container
-        initGraph(graphData);
+        // Read active values from UI that weren't immediately synced
+        // Or to be safe, grab all physics/layout ones here
+        chargeStrength = parseInt(document.getElementById('charge-strength').value);
+        chargeTheta = parseFloat(document.getElementById('charge-theta').value);
+        chargeDistMin = parseInt(document.getElementById('charge-dist-min').value);
+        chargeDistMax = parseInt(document.getElementById('charge-dist-max').value);
+        linkDistance = parseInt(document.getElementById('link-distance').value);
+        linkIterations = parseInt(document.getElementById('link-iterations').value);
+        collideStrength = parseFloat(document.getElementById('collide-strength').value);
+        collideRadius = parseFloat(document.getElementById('collide-radius').value);
+        collideIterations = parseInt(document.getElementById('collide-iterations').value);
+        centerStrength = parseFloat(document.getElementById('center-strength').value);
+
+        const newLayout = document.getElementById('layout-mode').value;
+        clusterStrength = parseFloat(document.getElementById('cluster-strength').value);
+        disjointStrength = parseFloat(document.getElementById('disjoint-strength').value);
+
+        applyLayoutMode(newLayout);
+        updatePhysicsSettings();
+
+        // Finally, refresh general graph settings
+        updateGraphSettings();
     }
 });
 
@@ -792,6 +822,56 @@ function applyDefaults(defaults) {
     nodeScaleType = defaults.nodeScaleType;
     edgeScaleType = defaults.edgeScaleType;
     particleScaleType = defaults.particleScaleType;
+
+    // Layout & Clustering
+    dagSelect.value = defaults.dagMode || "";
+    if (Graph) Graph.dagMode(defaults.dagMode || null);
+
+    document.getElementById('layout-mode').value = defaults.layoutMode;
+    document.getElementById('cluster-strength').value = defaults.clusterStrength;
+    document.getElementById('val-cluster-strength').textContent = defaults.clusterStrength;
+    document.getElementById('disjoint-strength').value = defaults.disjointStrength;
+    document.getElementById('val-disjoint-strength').textContent = defaults.disjointStrength;
+
+    document.getElementById('clustering-algorithm').value = defaults.clusteringAlgorithm;
+    document.getElementById('cluster-bins').value = defaults.clusterBins;
+    document.getElementById('val-cluster-bins').textContent = defaults.clusterBins;
+
+    // Physics
+    chargeStrength = defaults.chargeStrength;
+    chargeTheta = defaults.chargeTheta;
+    chargeDistMin = defaults.chargeDistMin;
+    chargeDistMax = defaults.chargeDistMax;
+    linkDistance = defaults.linkDistance;
+    linkIterations = defaults.linkIterations;
+    collideStrength = defaults.collideStrength;
+    collideRadius = defaults.collideRadius;
+    collideIterations = defaults.collideIterations;
+    centerStrength = defaults.centerStrength;
+
+    document.getElementById('charge-strength').value = chargeStrength;
+    document.getElementById('val-charge-strength').textContent = chargeStrength;
+    document.getElementById('charge-theta').value = chargeTheta;
+    document.getElementById('val-charge-theta').textContent = chargeTheta;
+    document.getElementById('charge-dist-min').value = chargeDistMin;
+    document.getElementById('val-charge-dist-min').textContent = chargeDistMin;
+    document.getElementById('charge-dist-max').value = chargeDistMax;
+    document.getElementById('val-charge-dist-max').textContent = chargeDistMax;
+
+    document.getElementById('link-distance').value = linkDistance;
+    document.getElementById('val-link-distance').textContent = linkDistance;
+    document.getElementById('link-iterations').value = linkIterations;
+    document.getElementById('val-link-iterations').textContent = linkIterations;
+
+    document.getElementById('collide-strength').value = collideStrength;
+    document.getElementById('val-collide-strength').textContent = collideStrength;
+    document.getElementById('collide-radius').value = collideRadius;
+    document.getElementById('val-collide-radius').textContent = collideRadius;
+    document.getElementById('collide-iterations').value = collideIterations;
+    document.getElementById('val-collide-iterations').textContent = collideIterations;
+
+    document.getElementById('center-strength').value = centerStrength;
+    document.getElementById('val-center-strength').textContent = centerStrength;
 
     // 3D-only
     if (currentMode === '3D') {
@@ -909,8 +989,47 @@ function applyDefaults(defaults) {
 
 function resetSettings() {
     const defaults = getDefaultsForMode(currentMode);
+
+    // Reset clustering mode UI to Topology
+    clusteringMode = 'topology';
+    clusterModeTopologyBtn.classList.add('bg-indigo-600', 'text-white');
+    clusterModeTopologyBtn.classList.remove('text-gray-400');
+    clusterModeAttributeBtn.classList.remove('bg-indigo-600', 'text-white');
+    clusterModeAttributeBtn.classList.add('text-gray-400');
+    clusterTopologyPanel.classList.remove('hidden');
+    clusterAttributePanel.classList.add('hidden');
+
+    // Reset clustering state & data
+    clusteringActive = false;
+    clusterColorMap = {};
+    clusterLabelMap = {};
+    selectedClusterAttrs = [];
+
+    // Uncheck all attribute checkboxes
+    const checkboxes = clusterAttrList.querySelectorAll('input[type="checkbox"]');
+    checkboxes.forEach(cb => cb.checked = false);
+    clusterBinsContainer.classList.add('hidden');
+
+    if (clusterLegendDiv) clusterLegendDiv.classList.add('hidden');
+
+    // Remove 'cluster' option from node color dropdown if present
+    Array.from(nodeColorSelect.options).forEach(opt => {
+        if (opt.value === 'cluster') opt.remove();
+    });
+
+    // Default node color back to None
+    nodeColorAttribute = '';
+    nodeColorSelect.value = '';
+
     applyDefaults(defaults);
+    applyLayoutMode(defaults.layoutMode);
+    updatePhysicsSettings();
     updateGraphSettings();
+
+    // Re-trigger default clustering to restore initial state
+    if (graphData && Graph) {
+        autoRunDefaultClustering();
+    }
 }
 
 

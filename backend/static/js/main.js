@@ -11,6 +11,7 @@ let activeFilter = { type: null, value: null }; // { type: 'division'|'circle'|'
 let fixNodes = false;
 let nodeColorAttribute = 'shape';
 let hoverEnabled = true;
+let showEdges = true;
 let labelDensity = 0.1;
 let nodeSizeAttribute = 'amount';
 let edgeWidthAttribute = 'Assesment Amount';
@@ -61,6 +62,7 @@ const DEFAULTS_2D = {
     // Common
     fixNodes: false,
     hoverEnabled: true,
+    showEdges: true,
     labelDensity: 0.2,
 
     nodeSizeAttribute: 'amount',
@@ -112,6 +114,7 @@ const DEFAULTS_3D = {
     // Common
     fixNodes: false,
     hoverEnabled: true,
+    showEdges: true,
     labelDensity: 0.1,
 
     nodeSizeAttribute: 'amount',
@@ -211,6 +214,7 @@ const arrowLengthSlider = document.getElementById('arrow-length');
 const nodeColorSelect = document.getElementById('node-color-by');
 const fixNodesToggle = document.getElementById('fix-nodes-toggle');
 const hoverToggle = document.getElementById('hover-toggle');
+const showEdgesToggle = document.getElementById('show-edges-toggle');
 const labelDensitySlider = document.getElementById('label-density');
 const nodeSizeSelect = document.getElementById('node-size-attr');
 const edgeWidthSelect = document.getElementById('edge-width-attr');
@@ -425,6 +429,21 @@ hoverToggle.addEventListener('click', () => {
         hoverToggle.classList.add('bg-gray-700');
         span.classList.remove('translate-x-5');
     }
+});
+
+showEdgesToggle.addEventListener('click', () => {
+    showEdges = !showEdges;
+    const span = showEdgesToggle.querySelector('span');
+    if (showEdges) {
+        showEdgesToggle.classList.add('bg-indigo-600');
+        showEdgesToggle.classList.remove('bg-gray-700');
+        span.classList.add('translate-x-5');
+    } else {
+        showEdgesToggle.classList.remove('bg-indigo-600');
+        showEdgesToggle.classList.add('bg-gray-700');
+        span.classList.remove('translate-x-5');
+    }
+    updateGraphSettings();
 });
 
 labelDensitySlider.addEventListener('input', (e) => {
@@ -785,7 +804,31 @@ function applyDefaults(defaults) {
 
     // ---- UI ----
     document.getElementById('fix-nodes-toggle').checked = fixNodes;
-    document.getElementById('hover-toggle').checked = hoverEnabled;
+    document.getElementById('hover-toggle').checked = hoverEnabled; // Wait, hoverToggle is a button in JS logic above, but settings defaults says .checked?
+    // Let's check how applyDefaults handles toggles
+
+    // Update visual state of toggles
+    const hoverSpan = hoverToggle.querySelector('span');
+    if (hoverEnabled) {
+        hoverToggle.classList.add('bg-indigo-600');
+        hoverToggle.classList.remove('bg-gray-700');
+        hoverSpan.classList.add('translate-x-5');
+    } else {
+        hoverToggle.classList.remove('bg-indigo-600');
+        hoverToggle.classList.add('bg-gray-700');
+        hoverSpan.classList.remove('translate-x-5');
+    }
+
+    const edgesSpan = showEdgesToggle.querySelector('span');
+    if (showEdges) {
+        showEdgesToggle.classList.add('bg-indigo-600');
+        showEdgesToggle.classList.remove('bg-gray-700');
+        edgesSpan.classList.add('translate-x-5');
+    } else {
+        showEdgesToggle.classList.remove('bg-indigo-600');
+        showEdgesToggle.classList.add('bg-gray-700');
+        edgesSpan.classList.remove('translate-x-5');
+    }
 
     document.getElementById('label-density').value = labelDensity;
     document.getElementById('val-label-density').textContent = labelDensity;
@@ -1245,6 +1288,9 @@ function populateFilters(data) {
     const edgeColors = [...new Set(data.links.map(l => l.color).filter(Boolean))].sort();
     const edgeColorPalette = generateColors(edgeColors.length);
     edgeColors.forEach((c, i) => createFilterBtn(filterContainers.edge, 'edge', c, edgeColorPalette[i]));
+
+    // Rebuild attribute clustering UI when new data is loaded
+    buildAttributeClusteringUI(data);
 }
 
 function handleFilterClick(type, value, btnElement) {
@@ -1442,10 +1488,17 @@ function updateGraphSettings() {
     const maxParticleVal = particleValues.length ? Math.max(...particleValues) : 1;
 
     // Color mapping based on current selection
-    const values = [...new Set(data.nodes.map(n => n[nodeColorAttribute]).filter(Boolean))].sort();
-    const colors = generateColors(values.length);
-    const colorMap = {};
-    values.forEach((v, i) => colorMap[v] = colors[i]);
+    // When nodeColorAttribute === 'cluster', use the globally stored clusterColorMap
+    // (which is built with numeric sort in applyClustering) to avoid string-sort mismatch.
+    let colorMap = {};
+    if (nodeColorAttribute === 'cluster' && Object.keys(clusterColorMap).length > 0) {
+        // Use the canonical map — keys are integers stored as strings in JS objects, but values are correct
+        colorMap = clusterColorMap;
+    } else {
+        const values = [...new Set(data.nodes.map(n => n[nodeColorAttribute]).filter(Boolean))].sort();
+        const colors = generateColors(values.length);
+        values.forEach((v, i) => colorMap[v] = colors[i]);
+    }
 
     // Color mapping for Edge Colors
     const edgeColors = [...new Set(data.links.map(l => l.color).filter(Boolean))].sort();
@@ -1499,6 +1552,7 @@ function updateGraphSettings() {
             // Hover dimming removed per request
             return color;
         })
+        .linkVisibility(showEdges)
 
         .linkDirectionalArrowLength(arrowLength)
         .linkDirectionalArrowRelPos(arrowPos)
@@ -1837,6 +1891,12 @@ function resetApp() {
     sidebarPanel.classList.add('translate-x-full');
     infoPanel.classList.add('translate-y-[120%]');
     fileInput.value = '';
+
+    // Reset cluster state + hide legend
+    clusterColorMap = {};
+    clusterLabelMap = {};
+    clusteringActive = false;
+    if (clusterLegendDiv) clusterLegendDiv.classList.add('hidden');
 }
 
 function processLinkCurvature(links) {
@@ -1916,6 +1976,18 @@ function checkLabelDensity(id) {
 // Clustering Elements
 const clusteringAlgorithmSelect = document.getElementById('clustering-algorithm');
 
+// Attribute Clustering Elements
+const clusterModeTopologyBtn = document.getElementById('cluster-mode-topology');
+const clusterModeAttributeBtn = document.getElementById('cluster-mode-attribute');
+const clusterTopologyPanel = document.getElementById('cluster-topology-panel');
+const clusterAttributePanel = document.getElementById('cluster-attribute-panel');
+const clusterAttrList = document.getElementById('cluster-attr-list');
+const clusterBinsContainer = document.getElementById('cluster-bins-container');
+const clusterBinsSlider = document.getElementById('cluster-bins');
+const applyAttrClusterBtn = document.getElementById('apply-attr-cluster-btn');
+const clusterLegendDiv = document.getElementById('cluster-legend');
+const clusterLegendItems = document.getElementById('cluster-legend-items');
+
 // Layout Elements
 const layoutModeSelect = document.getElementById('layout-mode');
 const clusterStrengthContainer = document.getElementById('cluster-strength-container');
@@ -1928,6 +2000,12 @@ let currentLayoutMode = 'default';
 let clusterStrength = 0.3;
 let disjointStrength = 0.05;
 let clusteringActive = false; // Whether clustering has been applied
+let clusteringMode = 'topology'; // 'topology' | 'attribute'
+let selectedClusterAttrs = []; // Selected attribute names for attribute clustering
+let numericBins = 5;
+// Global cluster color/label maps — single source of truth for legend + node colors
+let clusterColorMap = {}; // cluster_id (int) -> color string
+let clusterLabelMap = {}; // cluster_id (int) -> human-readable label
 
 // --- Custom Force: Cluster Attraction ---
 // Pulls nodes toward the centroid of their cluster
@@ -2268,7 +2346,7 @@ async function autoRunDefaultClustering() {
     applyLayoutMode('disjoint');
 }
 
-function applyClustering(clusters) {
+function applyClustering(clusters, labelMap = null) {
 
     // Update graphData nodes with cluster info
     graphData.nodes.forEach(node => {
@@ -2296,16 +2374,25 @@ function applyClustering(clusters) {
     nodeColorSelect.value = 'cluster';
     nodeColorAttribute = 'cluster';
 
-    // Update graph colors
-    if (Graph) {
-        const values = [...new Set(Object.values(clusters))].sort((a, b) => a - b);
-        const colors = generateColors(values.length);
-        const colorMap = {};
-        values.forEach((v, i) => colorMap[v] = colors[i]);
+    // Build global colorMap with numeric sort (critical: avoids string-sort mismatch)
+    const values = [...new Set(Object.values(clusters))].sort((a, b) => a - b);
+    const colors = generateColors(values.length);
+    clusterColorMap = {};
+    values.forEach((v, i) => clusterColorMap[v] = colors[i]);
 
+    // Build label map: use provided labelMap (attribute mode) or auto-generate Cluster N (topology)
+    if (labelMap) {
+        clusterLabelMap = labelMap;
+    } else {
+        clusterLabelMap = {};
+        values.forEach(v => { clusterLabelMap[v] = 'Cluster ' + v; });
+    }
+
+    // Apply colors to graph
+    if (Graph) {
         Graph.nodeColor(node => {
             if (highlightedNodes.size > 0 && !highlightedNodes.has(node.id)) return 'rgba(100, 100, 100, 0.2)';
-            return colorMap[node.cluster] || '#9ca3af';
+            return clusterColorMap[node.cluster] || '#9ca3af';
         });
 
         // Auto-apply cluster-grouped layout after clustering
@@ -2314,4 +2401,226 @@ function applyClustering(clusters) {
         disjointStrengthContainer.classList.add('hidden');
         applyLayoutMode('cluster-grouped');
     }
+
+    // Show legend (works for both topology and attribute mode)
+    buildClusterLegend();
 }
+
+// ============================================================
+// ATTRIBUTE-BASED CLUSTERING
+// ============================================================
+
+/**
+ * Build the dynamic attribute checkbox list from loaded graph node properties.
+ * Called every time a new graph file is loaded.
+ */
+function buildAttributeClusteringUI(data) {
+    if (!data || !data.nodes || data.nodes.length === 0) return;
+
+    // Collect all unique attribute keys across nodes (excluding internal/structural keys)
+    const skipKeys = new Set(['id', 'name', 'x', 'y', 'z', 'vx', 'vy', 'vz', 'fx', 'fy', 'fz',
+        'index', '__indexColor', '__threeObj', '__lineObj', '__arrowObj', 'curvature',
+        'cluster', 'val']);
+
+    const attrKeys = new Set();
+    data.nodes.forEach(node => {
+        Object.keys(node).forEach(k => {
+            if (!skipKeys.has(k)) attrKeys.add(k);
+        });
+    });
+
+    // Reset selected attrs
+    selectedClusterAttrs = [];
+    clusterBinsContainer.classList.add('hidden');
+    clusterLegendDiv.classList.add('hidden');
+    clusterAttrList.innerHTML = '';
+
+    if (attrKeys.size === 0) {
+        clusterAttrList.innerHTML = '<p class="text-xs text-gray-500 italic">No attributes found</p>';
+        return;
+    }
+
+    [...attrKeys].sort().forEach(key => {
+        // Detect if attribute is numeric
+        const sampleVals = data.nodes.map(n => n[key]).filter(v => v !== null && v !== undefined);
+        const isNumeric = sampleVals.length > 0 && sampleVals.every(v => !isNaN(parseFloat(v)) && isFinite(v));
+        const uniqueCount = new Set(sampleVals).size;
+
+        const wrapper = document.createElement('label');
+        wrapper.className = 'flex items-center gap-2 cursor-pointer text-sm text-gray-300 hover:text-white';
+
+        const cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.value = key;
+        cb.className = 'w-3.5 h-3.5 rounded text-indigo-500 bg-gray-700 border-gray-600 focus:ring-indigo-500 cursor-pointer accent-indigo-500';
+
+        const labelText = document.createElement('span');
+        labelText.className = 'flex-1 truncate';
+        labelText.textContent = key;
+
+        const badge = document.createElement('span');
+        badge.className = 'ml-auto text-xs shrink-0 px-1.5 py-0.5 rounded';
+        if (isNumeric) {
+            badge.className += ' text-indigo-400 bg-indigo-900/40';
+            badge.textContent = 'num';
+        } else {
+            badge.className += ' text-gray-500';
+            badge.textContent = uniqueCount + 'v';
+        }
+
+        wrapper.append(cb, labelText, badge);
+
+        cb.addEventListener('change', () => {
+            if (cb.checked) {
+                if (!selectedClusterAttrs.includes(key)) selectedClusterAttrs.push(key);
+            } else {
+                selectedClusterAttrs = selectedClusterAttrs.filter(k => k !== key);
+            }
+            // Show bins slider if any selected attr is numeric
+            const anyNumeric = selectedClusterAttrs.some(attr => {
+                const vals = data.nodes.map(n => n[attr]).filter(v => v !== null && v !== undefined);
+                return vals.length > 0 && vals.every(v => !isNaN(parseFloat(v)) && isFinite(v));
+            });
+            clusterBinsContainer.classList.toggle('hidden', !anyNumeric);
+        });
+
+        clusterAttrList.appendChild(wrapper);
+    });
+}
+
+// Cluster mode toggle: Topology
+clusterModeTopologyBtn.addEventListener('click', () => {
+    clusteringMode = 'topology';
+    clusterModeTopologyBtn.classList.add('bg-indigo-600', 'text-white');
+    clusterModeTopologyBtn.classList.remove('text-gray-400');
+    clusterModeAttributeBtn.classList.remove('bg-indigo-600', 'text-white');
+    clusterModeAttributeBtn.classList.add('text-gray-400');
+    clusterTopologyPanel.classList.remove('hidden');
+    clusterAttributePanel.classList.add('hidden');
+});
+
+// Cluster mode toggle: Attribute
+clusterModeAttributeBtn.addEventListener('click', () => {
+    clusteringMode = 'attribute';
+    clusterModeAttributeBtn.classList.add('bg-indigo-600', 'text-white');
+    clusterModeAttributeBtn.classList.remove('text-gray-400');
+    clusterModeTopologyBtn.classList.remove('bg-indigo-600', 'text-white');
+    clusterModeTopologyBtn.classList.add('text-gray-400');
+    clusterAttributePanel.classList.remove('hidden');
+    clusterTopologyPanel.classList.add('hidden');
+});
+
+// Numeric bins slider
+clusterBinsSlider.addEventListener('input', (e) => {
+    numericBins = parseInt(e.target.value);
+    document.getElementById('val-cluster-bins').textContent = numericBins;
+});
+
+// Apply attribute clustering button
+applyAttrClusterBtn.addEventListener('click', () => {
+    if (!graphData) {
+        alert('No graph data loaded.');
+        return;
+    }
+    if (selectedClusterAttrs.length === 0) {
+        alert('Please select at least one attribute to cluster by.');
+        return;
+    }
+    applyAttributeClustering(selectedClusterAttrs);
+});
+
+/**
+ * Core attribute clustering function.
+ * Groups nodes by the combined values of the selected attributes.
+ * Numeric attributes are binned into `numericBins` equal-width bins.
+ */
+function applyAttributeClustering(attrs) {
+    if (!graphData || attrs.length === 0) return;
+    const nodes = graphData.nodes;
+
+    // Pre-compute min/max for numeric attributes
+    const numericMeta = {};
+    attrs.forEach(attr => {
+        const vals = nodes.map(n => parseFloat(n[attr])).filter(v => !isNaN(v) && isFinite(v));
+        if (vals.length > 0) {
+            const allNumeric = nodes.every(n => {
+                const v = n[attr];
+                return v === null || v === undefined || (!isNaN(parseFloat(v)) && isFinite(v));
+            });
+            if (allNumeric) {
+                numericMeta[attr] = { min: Math.min(...vals), max: Math.max(...vals) };
+            }
+        }
+    });
+
+    // Compute combined bucket key for a node
+    function getNodeKey(node) {
+        return attrs.map(attr => {
+            const val = node[attr];
+            if (val === null || val === undefined) return '__null__';
+            if (numericMeta[attr]) {
+                const { min, max } = numericMeta[attr];
+                if (min === max) return 'bin0';
+                const bin = Math.min(
+                    numericBins - 1,
+                    Math.floor(((parseFloat(val) - min) / (max - min)) * numericBins)
+                );
+                const binMin = (min + (bin / numericBins) * (max - min)).toFixed(2);
+                const binMax = (min + ((bin + 1) / numericBins) * (max - min)).toFixed(2);
+                return `${attr}:[${binMin}-${binMax})`;
+            }
+            return `${attr}:${val}`;
+        }).join('  ');
+    }
+
+    // Assign cluster IDs
+    const keyToCluster = {};
+    const clusterToKey = {};
+    let nextCluster = 0;
+    const clusters = {};
+
+    nodes.forEach(node => {
+        const key = getNodeKey(node);
+        if (!(key in keyToCluster)) {
+            keyToCluster[key] = nextCluster;
+            clusterToKey[nextCluster] = key;
+            nextCluster++;
+        }
+        clusters[node.id] = keyToCluster[key];
+    });
+
+    // Apply standard clustering rendering + layout
+    // Pass clusterToKey as labelMap so applyClustering uses human-readable attribute labels in the legend
+    applyClustering(clusters, clusterToKey);
+    // Note: buildClusterLegend is called inside applyClustering
+}
+
+/**
+ * Render the cluster legend from global clusterColorMap and clusterLabelMap.
+ * Colors are always in sync with node colors because both use the same global.
+ * Works for both topology ("Cluster N") and attribute-based (human-readable keys) modes.
+ */
+function buildClusterLegend() {
+    const ids = Object.keys(clusterLabelMap).map(Number).sort((a, b) => a - b);
+    if (ids.length === 0) {
+        clusterLegendDiv.classList.add('hidden');
+        return;
+    }
+
+    clusterLegendItems.innerHTML = '';
+    ids.forEach(id => {
+        const label = clusterLabelMap[id];
+        const color = clusterColorMap[id] || '#9ca3af';
+
+        const row = document.createElement('div');
+        row.className = 'flex items-start gap-2 text-xs py-0.5';
+        row.innerHTML = `
+            <span class="w-3 h-3 rounded-full shrink-0 mt-0.5" style="background:${color}"></span>
+            <span class="text-gray-300 leading-tight break-all">${label}</span>
+        `;
+        clusterLegendItems.appendChild(row);
+    });
+
+    clusterLegendDiv.classList.remove('hidden');
+}
+

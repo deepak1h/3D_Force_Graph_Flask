@@ -172,7 +172,21 @@
             <!-- Clustering Section -->
             <div class="filter-section pt-4 border-t border-gray-700">
               <h3 class="text-xs font-bold text-indigo-400 uppercase tracking-wider mb-3">Clustering</h3>
-              <div class="space-y-3">
+
+              <!-- Mode Toggle -->
+              <div class="flex bg-gray-800 rounded-lg p-1 mb-3">
+                <button id="cluster-mode-topology"
+                  class="flex-1 py-1.5 text-xs font-semibold rounded-md bg-indigo-600 text-white transition-all duration-200">
+                  Topology
+                </button>
+                <button id="cluster-mode-attribute"
+                  class="flex-1 py-1.5 text-xs font-semibold rounded-md text-gray-400 hover:text-white transition-all duration-200">
+                  Attribute
+                </button>
+              </div>
+
+              <!-- Topology Mode -->
+              <div id="cluster-topology-panel" class="space-y-3">
                 <select id="clustering-algorithm"
                   class="w-full bg-gray-800 border border-gray-700 text-white rounded-lg focus:ring-indigo-500 focus:border-indigo-500 text-sm p-2.5 transition-colors">
                   <option value="">Select Algorithm</option>
@@ -181,6 +195,39 @@
                   <option value="mcl">Markov Clustering (MCL)</option>
                   <option value="greedy">Greedy Modularity</option>
                 </select>
+              </div>
+
+              <!-- Attribute-Based Mode -->
+              <div id="cluster-attribute-panel" class="hidden space-y-3">
+                <p class="text-xs text-gray-500">Select one or more node attributes to cluster by:</p>
+
+                <!-- Dynamic Attribute Checkboxes -->
+                <div id="cluster-attr-list"
+                  class="max-h-40 overflow-y-auto custom-scrollbar space-y-1.5 bg-gray-800/50 rounded-lg p-2 border border-gray-700">
+                  <p class="text-xs text-gray-500 italic">Load a graph to see attributes</p>
+                </div>
+
+                <!-- Numeric Bins Control -->
+                <div id="cluster-bins-container" class="hidden">
+                  <label class="block text-xs text-gray-400 mb-1">
+                    Numeric Bins: <span id="val-cluster-bins">5</span>
+                  </label>
+                  <input type="range" id="cluster-bins" min="2" max="20" step="1" value="5"
+                    class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-indigo-500">
+                </div>
+
+                <!-- Apply Button -->
+                <button id="apply-attr-cluster-btn"
+                  class="w-full py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium rounded-lg transition-colors flex items-center justify-center gap-2">
+                  <i data-lucide="layers" class="w-4 h-4"></i>
+                  Apply Attribute Clustering
+                </button>
+              </div>
+
+              <!-- Cluster Legend -->
+              <div id="cluster-legend" class="hidden mt-3">
+                <p class="text-xs font-semibold text-gray-400 mb-2 uppercase tracking-wider">Legend</p>
+                <div id="cluster-legend-items" class="space-y-1 max-h-36 overflow-y-auto custom-scrollbar"></div>
               </div>
             </div>
 
@@ -255,6 +302,16 @@
             <div class="flex items-center justify-between">
               <label class="text-sm font-medium text-gray-400">Enable Hover Effects</label>
               <button id="hover-toggle"
+                class="w-11 h-6 bg-indigo-600 rounded-full relative transition-colors duration-200 focus:outline-none">
+                <span
+                  class="absolute left-1 top-1 w-4 h-4 bg-white rounded-full transition-transform duration-200 translate-x-5"></span>
+              </button>
+            </div>
+
+            <!-- Show Edges Toggle -->
+            <div class="flex items-center justify-between">
+              <label class="text-sm font-medium text-gray-400">show edges</label>
+              <button id="show-edges-toggle"
                 class="w-11 h-6 bg-indigo-600 rounded-full relative transition-colors duration-200 focus:outline-none">
                 <span
                   class="absolute left-1 top-1 w-4 h-4 bg-white rounded-full transition-transform duration-200 translate-x-5"></span>

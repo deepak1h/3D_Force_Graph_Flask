@@ -280,6 +280,13 @@ const infoContent = document.getElementById('info-content');
 const infoTitle = document.getElementById('info-title');
 const closeInfoBtn = document.getElementById('close-info-btn');
 
+// Chart Panel
+const chartPanel = document.getElementById('chart-panel');
+const chartTitle = document.getElementById('chart-title');
+const closeChartBtn = document.getElementById('close-chart-btn');
+let pieChartCanvas = document.getElementById('pie-chart');
+let currentChart = null; // Active Chart.js instance
+
 // Constants
 // const MIN_NODE_SIZE = 2;
 // const MAX_NODE_SIZE = 20; // Now dynamic
@@ -315,6 +322,7 @@ newFileBtn.addEventListener('click', resetApp);
 sidebarToggle.addEventListener('click', () => sidebarPanel.classList.remove('translate-x-full'));
 closeSidebarBtn.addEventListener('click', () => sidebarPanel.classList.add('translate-x-full'));
 closeInfoBtn.addEventListener('click', closeInfo);
+closeChartBtn.addEventListener('click', closeChart);
 
 // Tab Switching
 tabBtns.forEach(btn => {
@@ -1888,6 +1896,7 @@ function getLinkId(link) {
 function handleNodeClick(node) {
     isSelectionActive = true; // Activate selection mode
     showInfo(node, 'Node Details');
+    showPieChart(node, 'node');
     //zoomToNode(node);
 
     highlightedNodes.clear();
@@ -1910,6 +1919,7 @@ function handleNodeClick(node) {
 function handleLinkClick(link) {
     isSelectionActive = true; // Activate selection mode
     showInfo(link, 'Link Details');
+    showPieChart(link, 'edge');
 
     highlightedNodes.clear();
     highlightedLinks.clear();
@@ -1979,7 +1989,7 @@ function showInfo(data, title) {
         else if (typeof value === 'object') value = JSON.stringify(value, null, 2);
 
         const div = document.createElement('div');
-        div.className = 'grid grid-cols-3 gap-2 items-start py-2 border-b border-gray-700/50 text-sm';
+        div.className = 'grid grid-cols-3 gap-2 items-start border-b border-gray-700/50 text-sm';
         div.innerHTML = `
             <dt class="font-semibold text-gray-300 col-span-1 break-words">${key}</dt>
             <dd class="col-span-2 text-gray-200 break-words">${value}</dd>
@@ -1993,6 +2003,131 @@ function showInfo(data, title) {
 
 function closeInfo() {
     infoPanel.classList.add('translate-y-[120%]');
+    closeChart();
+}
+
+// --- Pie Chart Functions ---
+function showPieChart(data, type) {
+    // Destroy previous chart if exists
+    if (currentChart) {
+        currentChart.destroy();
+        currentChart = null;
+    }
+
+    // Replace canvas to avoid stale Chart.js state
+    const canvasContainer = pieChartCanvas.parentNode;
+    const newCanvas = document.createElement('canvas');
+    newCanvas.id = 'pie-chart';
+    newCanvas.width = 200;
+    newCanvas.height = 200;
+    canvasContainer.replaceChild(newCanvas, pieChartCanvas);
+    pieChartCanvas = newCanvas;
+
+    let labels = [];
+    let values = [];
+    let title = '';
+    let backgroundColors = [];
+
+    if (type === 'node') {
+        title = 'Amount In vs Out';
+        const amountIn = parseFloat(data.amount_in) || 0;
+        const amountOut = parseFloat(data.amount_out) || 0;
+
+        if (amountIn === 0 && amountOut === 0) {
+            chartTitle.textContent = title;
+            chartPanel.classList.add('-translate-x-[150%]');
+            return; // No data to show
+        }
+
+        labels = ['Amount In', 'Amount Out'];
+        values = [amountIn, amountOut];
+        backgroundColors = [
+            'rgba(99, 202, 183, 0.85)',   // Teal
+            'rgba(239, 118, 122, 0.85)'   // Coral
+        ];
+    } else if (type === 'edge') {
+        title = 'Tax Breakdown';
+        const cess = parseFloat(data['CESS TAX']) || parseFloat(data.cess_tax) || parseFloat(data.cess) || 0;
+        const cgst = parseFloat(data['CGST TAX']) || parseFloat(data.cgst_tax) || parseFloat(data.cgst) || 0;
+        const igst = parseFloat(data['IGST TAX']) || parseFloat(data.igst_tax) || parseFloat(data.igst) || 0;
+        const sgst = parseFloat(data['SGST TAX']) || parseFloat(data.sgst_tax) || parseFloat(data.sgst) || 0;
+
+        labels = ['CESS Tax', 'CGST Tax', 'IGST Tax', 'SGST Tax'];
+        values = [cess, cgst, igst, sgst];
+        backgroundColors = [
+            'rgba(251, 191, 36, 0.85)',   // Amber
+            'rgba(96, 165, 250, 0.85)',   // Blue
+            'rgba(168, 85, 247, 0.85)',   // Purple
+            'rgba(52, 211, 153, 0.85)'    // Emerald
+        ];
+    }
+
+    chartTitle.textContent = title;
+
+    currentChart = new Chart(pieChartCanvas, {
+        type: 'doughnut',
+        data: {
+            labels: labels,
+            datasets: [{
+                data: values,
+                backgroundColor: backgroundColors,
+                borderColor: 'rgba(55, 65, 81, 0.8)',
+                borderWidth: 2,
+                hoverBorderColor: '#fff',
+                hoverBorderWidth: 2
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            cutout: '40%',
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: {
+                        color: '#d1d5db',
+                        font: { size: 11, family: 'system-ui' },
+                        padding: 12,
+                        usePointStyle: true,
+                        pointStyleWidth: 10
+                    }
+                },
+                tooltip: {
+                    backgroundColor: 'rgba(17, 24, 39, 0.95)',
+                    titleColor: '#a5b4fc',
+                    bodyColor: '#e5e7eb',
+                    borderColor: 'rgba(75, 85, 99, 0.5)',
+                    borderWidth: 1,
+                    cornerRadius: 8,
+                    padding: 10,
+                    callbacks: {
+                        label: function (context) {
+                            const val = context.parsed;
+                            const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                            const pct = total > 0 ? ((val / total) * 100).toFixed(1) : 0;
+                            return ` ${context.label}: ${val.toLocaleString()} (${pct}%)`;
+                        }
+                    }
+                }
+            },
+            animation: {
+                animateRotate: true,
+                duration: 600,
+                easing: 'easeOutQuart'
+            }
+        }
+    });
+
+    // Show the chart panel
+    chartPanel.classList.remove('-translate-x-[150%]');
+}
+
+function closeChart() {
+    chartPanel.classList.add('-translate-x-[150%]');
+    if (currentChart) {
+        currentChart.destroy();
+        currentChart = null;
+    }
 }
 
 function resetApp() {
@@ -2009,6 +2144,7 @@ function resetApp() {
     sidebarToggle.classList.add('hidden');
     sidebarPanel.classList.add('translate-x-full');
     infoPanel.classList.add('translate-y-[120%]');
+    closeChart();
     fileInput.value = '';
 
     // Reset cluster state + hide legend

@@ -38,3 +38,7 @@
 .slide-out-right {
     transform: translateX(100%) !important;
 }
+
+.hide-scrollbar::-webkit-scrollbar {
+    display: none;
+}

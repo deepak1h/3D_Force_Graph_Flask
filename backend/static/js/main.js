@@ -287,6 +287,21 @@ const closeChartBtn = document.getElementById('close-chart-btn');
 let pieChartCanvas = document.getElementById('pie-chart');
 let currentChart = null; // Active Chart.js instance
 
+// Sankey Panel
+const sankeyPanel = document.getElementById('sankey-panel');
+const sankeyTitle = document.getElementById('sankey-title');
+const closeSankeyBtn = document.getElementById('close-sankey-btn');
+let sankeyChart = null; // Active ECharts instance
+
+// Zoom Modal
+const zoomPieBtn = document.getElementById('zoom-pie-btn');
+const zoomSankeyBtn = document.getElementById('zoom-sankey-btn');
+const chartModal = document.getElementById('chart-modal');
+const closeModalBtn = document.getElementById('close-modal-btn');
+const modalContent = document.getElementById('modal-content');
+const modalTitle = document.getElementById('modal-title');
+let modalChartInstance = null;
+
 // Constants
 // const MIN_NODE_SIZE = 2;
 // const MAX_NODE_SIZE = 20; // Now dynamic
@@ -323,6 +338,11 @@ sidebarToggle.addEventListener('click', () => sidebarPanel.classList.remove('tra
 closeSidebarBtn.addEventListener('click', () => sidebarPanel.classList.add('translate-x-full'));
 closeInfoBtn.addEventListener('click', closeInfo);
 closeChartBtn.addEventListener('click', closeChart);
+closeSankeyBtn.addEventListener('click', closeSankey);
+
+if (zoomPieBtn) zoomPieBtn.addEventListener('click', () => openChartModal('pie'));
+if (zoomSankeyBtn) zoomSankeyBtn.addEventListener('click', () => openChartModal('sankey'));
+if (closeModalBtn) closeModalBtn.addEventListener('click', closeChartModal);
 
 // Tab Switching
 tabBtns.forEach(btn => {
@@ -1897,6 +1917,7 @@ function handleNodeClick(node) {
     isSelectionActive = true; // Activate selection mode
     showInfo(node, 'Node Details');
     showPieChart(node, 'node');
+    showSankeyChart(node, 'node');
     //zoomToNode(node);
 
     highlightedNodes.clear();
@@ -1920,6 +1941,7 @@ function handleLinkClick(link) {
     isSelectionActive = true; // Activate selection mode
     showInfo(link, 'Link Details');
     showPieChart(link, 'edge');
+    showSankeyChart(link, 'edge');
 
     highlightedNodes.clear();
     highlightedLinks.clear();
@@ -1998,12 +2020,13 @@ function showInfo(data, title) {
     });
 
     infoContent.appendChild(dl);
-    infoPanel.classList.remove('translate-y-[120%]');
+    infoPanel.classList.remove('hidden');
 }
 
 function closeInfo() {
-    infoPanel.classList.add('translate-y-[120%]');
+    infoPanel.classList.add('hidden');
     closeChart();
+    closeSankey();
 }
 
 // --- Pie Chart Functions ---
@@ -2018,8 +2041,6 @@ function showPieChart(data, type) {
     const canvasContainer = pieChartCanvas.parentNode;
     const newCanvas = document.createElement('canvas');
     newCanvas.id = 'pie-chart';
-    newCanvas.width = 200;
-    newCanvas.height = 200;
     canvasContainer.replaceChild(newCanvas, pieChartCanvas);
     pieChartCanvas = newCanvas;
 
@@ -2035,7 +2056,7 @@ function showPieChart(data, type) {
 
         if (amountIn === 0 && amountOut === 0) {
             chartTitle.textContent = title;
-            chartPanel.classList.add('-translate-x-[150%]');
+            chartPanel.classList.add('hidden');
             return; // No data to show
         }
 
@@ -2119,14 +2140,162 @@ function showPieChart(data, type) {
     });
 
     // Show the chart panel
-    chartPanel.classList.remove('-translate-x-[150%]');
+    chartPanel.classList.remove('hidden');
 }
 
 function closeChart() {
-    chartPanel.classList.add('-translate-x-[150%]');
+    chartPanel.classList.add('hidden');
     if (currentChart) {
         currentChart.destroy();
         currentChart = null;
+    }
+}
+
+function closeSankey() {
+    sankeyPanel.classList.add('hidden');
+    if (sankeyChart) {
+        sankeyChart.dispose();
+        sankeyChart = null;
+    }
+}
+
+function showSankeyChart(data, type) {
+    if (sankeyChart) {
+        sankeyChart.dispose();
+        sankeyChart = null;
+    }
+
+    if (type !== 'node') {
+        closeSankey();
+        return;
+    }
+
+    const amountIn = parseFloat(data.amount_in) || 0;
+    const amountOut = parseFloat(data.amount_out) || 0;
+    const totalAmount = parseFloat(data.amount) || (amountIn + amountOut);
+
+    if (amountIn === 0 && amountOut === 0 && totalAmount === 0) {
+        closeSankey();
+        return;
+    }
+
+    const chartDom = document.getElementById('sankey-chart');
+    sankeyChart = echarts.init(chartDom);
+
+    const nodesData = [
+        { name: 'Total Amount', itemStyle: { color: 'rgba(96, 165, 250, 0.85)' } }
+    ];
+    const linksData = [];
+
+    if (amountIn > 0) {
+        nodesData.push({ name: 'Amount In', itemStyle: { color: 'rgba(99, 202, 183, 0.85)' } });
+        linksData.push({ source: 'Amount In', target: 'Total Amount', value: amountIn });
+    }
+
+    if (amountOut > 0) {
+        nodesData.push({ name: 'Amount Out', itemStyle: { color: 'rgba(239, 118, 122, 0.85)' } });
+        linksData.push({ source: 'Total Amount', target: 'Amount Out', value: amountOut });
+    }
+
+    if (amountIn === 0 && amountOut === 0) {
+        // Just show total amount block if no flow
+        if (totalAmount > 0) {
+            nodesData[0].value = totalAmount;
+        } else {
+            closeSankey();
+            return;
+        }
+    }
+
+    const option = {
+        tooltip: {
+            trigger: 'item',
+            triggerOn: 'mousemove',
+            backgroundColor: 'rgba(17, 24, 39, 0.95)',
+            borderColor: 'rgba(75, 85, 99, 0.5)',
+            textStyle: { color: '#e5e7eb' },
+            formatter: function (params) {
+                return `${params.name}: <br/><b>${params.value.toLocaleString()}</b>`;
+            }
+        },
+        series: [
+            {
+                type: 'sankey',
+                emphasis: {
+                    focus: 'adjacency'
+                },
+                nodeAlign: 'justify',
+                data: nodesData,
+                links: linksData,
+                lineStyle: {
+                    color: 'source',
+                    curveness: 0.5,
+                    opacity: 0.4
+                },
+                label: {
+                    color: '#e5e7eb',
+                    fontSize: 11
+                }
+            }
+        ]
+    };
+
+    sankeyChart.setOption(option);
+    sankeyPanel.classList.remove('hidden');
+}
+
+function openChartModal(type) {
+    if ((type === 'pie' && !currentChart) || (type === 'sankey' && !sankeyChart)) return;
+
+    chartModal.classList.remove('hidden');
+    chartModal.classList.add('flex');
+    modalContent.innerHTML = '';
+
+    if (type === 'pie') {
+        modalTitle.textContent = chartTitle.textContent;
+        const newCanvas = document.createElement('canvas');
+        newCanvas.style.maxHeight = '100%';
+        newCanvas.style.maxWidth = '100%';
+        modalContent.appendChild(newCanvas);
+
+        modalChartInstance = new Chart(newCanvas, {
+            type: currentChart.config.type,
+            data: currentChart.data,
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: 'right', labels: { color: '#d1d5db', font: { size: 14 } } },
+                    tooltip: currentChart.options.plugins.tooltip
+                }
+            }
+        });
+    } else if (type === 'sankey') {
+        modalTitle.textContent = sankeyTitle.textContent;
+        const newDiv = document.createElement('div');
+        newDiv.style.width = '100%';
+        newDiv.style.height = '100%';
+        modalContent.appendChild(newDiv);
+
+        modalChartInstance = echarts.init(newDiv);
+        const options = sankeyChart.getOption();
+        if (options.series && options.series.length > 0) {
+            options.series[0].label.fontSize = 14;
+        }
+        modalChartInstance.setOption(options);
+    }
+}
+
+function closeChartModal() {
+    chartModal.classList.add('hidden');
+    chartModal.classList.remove('flex');
+    if (modalChartInstance) {
+        if (typeof modalChartInstance.destroy === 'function') {
+            modalChartInstance.destroy();
+        } else if (typeof modalChartInstance.dispose === 'function') {
+            modalChartInstance.dispose();
+        }
+        modalChartInstance = null;
     }
 }
 
@@ -2143,8 +2312,10 @@ function resetApp() {
     newFileBtn.classList.add('hidden');
     sidebarToggle.classList.add('hidden');
     sidebarPanel.classList.add('translate-x-full');
-    infoPanel.classList.add('translate-y-[120%]');
+    infoPanel.classList.add('hidden');
     closeChart();
+    closeSankey();
+    closeChartModal();
     fileInput.value = '';
 
     // Reset cluster state + hide legend

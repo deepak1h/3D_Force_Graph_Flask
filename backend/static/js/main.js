@@ -2225,6 +2225,7 @@ function showSankeyChart(data, type) {
                     focus: 'adjacency'
                 },
                 nodeAlign: 'justify',
+                nodeWidth: 5,
                 data: nodesData,
                 links: linksData,
                 lineStyle: {

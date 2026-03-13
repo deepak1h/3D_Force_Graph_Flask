@@ -18,6 +18,7 @@ let edgeWidthAttribute = 'Assesment Amount';
 let nodeLabelAttribute = 'legal_name';
 let edgeLabelAttribute = 'assamtstr';
 let particleWidthAttribute = 'Assesment Amount';
+let scoreThreshold = 15;
 let nodeLabelSize = 12;
 let edgeLabelSize = 2.5;
 let arrowPos = 0.5;
@@ -227,6 +228,7 @@ const nodeScaleTypeSelect = document.getElementById('node-scale-type');
 const edgeScaleTypeSelect = document.getElementById('edge-scale-type');
 const particleScaleTypeSelect = document.getElementById('particle-scale-type');
 const arrowLengthSlider = document.getElementById('arrow-length');
+const scoreThresholdSlider = document.getElementById('score-threshold');
 const nodeColorSelect = document.getElementById('node-color-by');
 const fixNodesToggle = document.getElementById('fix-nodes-toggle');
 const hoverToggle = document.getElementById('hover-toggle');
@@ -576,6 +578,12 @@ particleScaleTypeSelect.addEventListener('change', (e) => {
 arrowLengthSlider.addEventListener('input', (e) => {
     arrowLength = parseFloat(e.target.value);
     document.getElementById('val-arrow-length').textContent = arrowLength;
+    updateGraphSettings();
+});
+
+scoreThresholdSlider.addEventListener('input', (e) => {
+    scoreThreshold = parseInt(e.target.value);
+    document.getElementById('val-score-threshold').textContent = scoreThreshold;
     updateGraphSettings();
 });
 
@@ -959,6 +967,9 @@ function applyDefaults(defaults) {
 
     document.getElementById('arrow-length').value = arrowLength;
     document.getElementById('val-arrow-length').textContent = arrowLength;
+
+    document.getElementById('score-threshold').value = scoreThreshold;
+    document.getElementById('val-score-threshold').textContent = scoreThreshold;
 
     document.getElementById('max-node-size').value = maxNodeSize;
     document.getElementById('val-max-node-size').textContent = maxNodeSize;
@@ -1783,20 +1794,22 @@ function updateGraphSettings() {
                 const group = new THREE.Group();
                 node.__threeGroup = group; // Store reference to update later
 
-                const amount = parseFloat(node.neighbour_count) || 0;
-                if (amount > 15) {
+                const score = parseFloat(node.neighbour_count) || 0;
+                if (score > scoreThreshold) {
                     // Create ring
-                    const geometry = new THREE.TorusGeometry(1, 0.5, 8, 24); // Adjust radius based on standard node size
+                    let ringColor = 0xffff00; // Yellow for score > 10 (or > scoreThreshold)
+                    if (score >= 66) ringColor = 0xff0000; // Red
+                    else if (score >= 50) ringColor = 0xffa500; // Orange
 
                     // We need to scale the ring based on the node size, but node size might be dynamic.
                     // Let's approximate based on nodeScaleType and min/max.
-                    const nodeRadius = scaleValue(amount, minNodeVal, maxNodeVal, minNodeSize * nodeSizeMultiplier, maxNodeSize * nodeSizeMultiplier, nodeScaleType);
+                    const nodeRadius = scaleValue(node[nodeSizeAttribute], minNodeVal, maxNodeVal, minNodeSize * nodeSizeMultiplier, maxNodeSize * nodeSizeMultiplier, nodeScaleType);
 
                     // Scale the torus geometry slightly larger than the node
                     const ringGeometry = new THREE.TorusGeometry(Math.sqrt(nodeRadius), Math.max(0.5, Math.sqrt(nodeRadius) * 0.1), 8, 24);
 
                     const material = new THREE.MeshBasicMaterial({
-                        color: node === hoverNode ? 0xff0000 : 0xffa500,
+                        color: node === hoverNode ? 0x6c3bfd : ringColor,
                         transparent: true,
                         opacity: 0.8
                     });
@@ -1863,13 +1876,18 @@ function updateGraphSettings() {
                 radius = scaleValue(node[nodeSizeAttribute], minNodeVal, maxNodeVal, minNodeSize, maxNodeSize, nodeScaleType);
             }
 
-            const amount = parseFloat(node.neighbour_count) || 0;
-            if (amount > 15) {
+            const score = parseFloat(node.neighbour_count) || 0;
+            if (score > scoreThreshold) {
                 // Draw highlight ring
+                let ringColor = 'yellow';
+                if (score >= 66) ringColor = 'red';
+                else if (score >= 50) ringColor = 'orange';
+
                 ctx.beginPath();
                 ctx.arc(node.x, node.y, radius * 1.4, 0, 2 * Math.PI, false);
-                ctx.fillStyle = node === hoverNode ? 'red' : 'orange';
-                ctx.fill();
+                ctx.lineWidth = radius * 0.3;
+                ctx.strokeStyle = node === hoverNode ? 'violet' : ringColor;
+                ctx.stroke();
             }
 
             ctx.beginPath();
@@ -2036,7 +2054,11 @@ function updateHighlight() {
             if (graphData && graphData.nodes) {
                 graphData.nodes.forEach(node => {
                     if (node.__ringMesh) {
-                        node.__ringMesh.material.color.setHex(node === hoverNode ? 0xff0000 : 0xffa500);
+                        const score = parseFloat(node.neighbour_count) || 0;
+                        let ringColor = 0xffff00; // Yellow
+                        if (score >= 66) ringColor = 0xff0000; // Red
+                        else if (score >= 50) ringColor = 0xffa500; // Orange
+                        node.__ringMesh.material.color.setHex(ringColor);
                     }
                 });
             }

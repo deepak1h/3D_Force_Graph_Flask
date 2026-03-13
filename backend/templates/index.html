@@ -265,9 +265,16 @@
 
               </div>
             </div>
+            <!-- Score Threshold Scale -->
+            <div>
+              <label class="block text-sm font-medium text-gray-400 mb-2">Score Threshold (<span
+                  id="val-score-threshold">15</span>)</label>
+              <input type="range" id="score-threshold" min="0" max="100" step="1" value="15"
+                class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-indigo-500">
+            </div>
+
           </div>
         </div>
-
 
         <!-- Settings Tab -->
         <div id="tab-settings" class="p-4 space-y-6 hidden">
@@ -700,6 +707,7 @@
 
           </div>
         </div>
+
       </div>
 
       <!-- Settings Footer (Floating Buttons) -->

@@ -1575,6 +1575,19 @@ async function initGraph(data) {
         .onNodeHover(node => {
             if (isSelectionActive || !hoverEnabled) return; // Disable hover when selection is active OR hover disabled
             hoverNode = node || null;
+
+            // Update 3D hover ring if present
+            if (currentMode === '3D' && Graph) {
+                // We need to trigger a quick re-render or update materials of rings directly
+                // Easiest is to update the group materials if we stored them
+                // We can't access all rings easily without a pass, so we'll just trigger update for the scene
+                // Actually, force-graph 3D updates automatically on node hover if we change its properties, 
+                // but for custom Three objects it might not.
+                // We'll let `updateHighlight` handle standard changes, but for custom rings we might need an explicit refresh or we can just apply hover state in `updateHighlight()` if we iterate the scene. Let's see if 3d-force-graph handles hover for threeObjects when hovered node changes. 
+                // Wait, it doesn't automatically re-evaluate nodeThreeObject on hover.
+                // We will implement a custom update pass in `updateHighlight()` for the rings.
+            }
+
             updateHighlight();
             graphContainer.style.cursor = node ? 'pointer' : null;
             if (node) {
@@ -1767,24 +1780,46 @@ function updateGraphSettings() {
 
         if (SpriteText) {
             Graph.nodeThreeObject(node => {
-                // Visibility Logic
+                const group = new THREE.Group();
+                node.__threeGroup = group; // Store reference to update later
+
+                const amount = parseFloat(node.neighbour_count) || 0;
+                if (amount > 15) {
+                    // Create ring
+                    const geometry = new THREE.TorusGeometry(1, 0.5, 8, 24); // Adjust radius based on standard node size
+
+                    // We need to scale the ring based on the node size, but node size might be dynamic.
+                    // Let's approximate based on nodeScaleType and min/max.
+                    const nodeRadius = scaleValue(amount, minNodeVal, maxNodeVal, minNodeSize * nodeSizeMultiplier, maxNodeSize * nodeSizeMultiplier, nodeScaleType);
+
+                    // Scale the torus geometry slightly larger than the node
+                    const ringGeometry = new THREE.TorusGeometry(Math.sqrt(nodeRadius), Math.max(0.5, Math.sqrt(nodeRadius) * 0.1), 8, 24);
+
+                    const material = new THREE.MeshBasicMaterial({
+                        color: node === hoverNode ? 0xff0000 : 0xffa500,
+                        transparent: true,
+                        opacity: 0.8
+                    });
+                    const ring = new THREE.Mesh(ringGeometry, material);
+                    group.add(ring);
+                    node.__ringMesh = ring; // Store reference to update material color on hover
+                }
+
+                // Visibility Logic for Label
                 const showLabel = (isSelectionActive && highlightedNodes.has(node.id)) ||
                     (!isSelectionActive && checkLabelDensity(node.id));
 
-                if (!showLabel) return null;
+                if (showLabel) {
+                    const label = node[nodeLabelAttribute] || node.id;
+                    const sprite = new SpriteText(label);
+                    sprite.material.depthWrite = false;
+                    sprite.color = (highlightedNodes.size > 0 && !highlightedNodes.has(node.id)) ? 'rgba(100, 100, 100, 0.2)' : '#ffffff';
+                    sprite.textHeight = (nodeLabelSize * 0.2).toFixed(1);
+                    sprite.center.y = -0.6;
+                    group.add(sprite);
+                }
 
-                const label = node[nodeLabelAttribute] || node.id;
-                const sprite = new SpriteText(label);
-                sprite.material.depthWrite = false;
-                sprite.color = (highlightedNodes.size > 0 && !highlightedNodes.has(node.id)) ? 'rgba(100, 100, 100, 0.2)' : '#ffffff';
-                sprite.textHeight = (nodeLabelSize * 0.2).toFixed(1); // Scale down for 3D visibility
-                sprite.center.y = -0.6; // Shift above node (radius is ~4-10, textHeight ~12. 0.5 is center. -0.5 is top edge?)
-                // Actually center.y = 0 is center. 0.5 is bottom, -0.5 is top.
-                // Let's try shifting it up by radius + padding.
-                // But SpriteText positioning is relative to the node center.
-                // We can just set a fixed offset or rely on center.y
-
-                return sprite;
+                return group.children.length > 0 ? group : null; // Return group if it has content, else allow default rendering
             })
                 .nodeThreeObjectExtend(true)
                 .linkThreeObject(link => {
@@ -1826,6 +1861,15 @@ function updateGraphSettings() {
             let radius = 4;
             if (nodeSizeAttribute) {
                 radius = scaleValue(node[nodeSizeAttribute], minNodeVal, maxNodeVal, minNodeSize, maxNodeSize, nodeScaleType);
+            }
+
+            const amount = parseFloat(node.neighbour_count) || 0;
+            if (amount > 15) {
+                // Draw highlight ring
+                ctx.beginPath();
+                ctx.arc(node.x, node.y, radius * 1.4, 0, 2 * Math.PI, false);
+                ctx.fillStyle = node === hoverNode ? 'red' : 'orange';
+                ctx.fill();
             }
 
             ctx.beginPath();
@@ -1985,6 +2029,18 @@ function updateHighlight() {
         Graph.nodeColor(Graph.nodeColor())
             .linkWidth(Graph.linkWidth())
             .linkColor(Graph.linkColor());
+
+        // For 3D rings, update material colors if any
+        if (currentMode === '3D') {
+            const graphData = Graph.graphData();
+            if (graphData && graphData.nodes) {
+                graphData.nodes.forEach(node => {
+                    if (node.__ringMesh) {
+                        node.__ringMesh.material.color.setHex(node === hoverNode ? 0xff0000 : 0xffa500);
+                    }
+                });
+            }
+        }
     }
 }
 

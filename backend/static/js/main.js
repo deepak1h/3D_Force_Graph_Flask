@@ -18,7 +18,8 @@ let edgeWidthAttribute = 'Assesment Amount';
 let nodeLabelAttribute = 'legal_name';
 let edgeLabelAttribute = 'assamtstr';
 let particleWidthAttribute = 'Assesment Amount';
-let scoreThreshold = 15;
+let fraudScoreAttribute = 'neighbour_count'
+let scoreThreshold = 0.15;
 let nodeLabelSize = 12;
 let edgeLabelSize = 2.5;
 let arrowPos = 0.5;
@@ -34,7 +35,6 @@ let edgeScaleType = 'linear';
 let particleScaleType = 'linear';
 let isPaused = false;
 
-let nodeSizeMultiplier = 10;
 let edgeWidthMultiplier = 0.8;
 let particleWidthMultiplier = 0.5;
 
@@ -336,8 +336,8 @@ fileInput.addEventListener('change', (e) => {
 
 // UI Controls
 newFileBtn.addEventListener('click', resetApp);
-sidebarToggle.addEventListener('click', () => sidebarPanel.classList.remove('translate-x-full'));
-closeSidebarBtn.addEventListener('click', () => sidebarPanel.classList.add('translate-x-full'));
+sidebarToggle.addEventListener('click', () => sidebarPanel.classList.add('sidebar-visible'));
+closeSidebarBtn.addEventListener('click', () => sidebarPanel.classList.remove('sidebar-visible'));
 closeInfoBtn.addEventListener('click', closeInfo);
 closeChartBtn.addEventListener('click', closeChart);
 closeSankeyBtn.addEventListener('click', closeSankey);
@@ -582,7 +582,7 @@ arrowLengthSlider.addEventListener('input', (e) => {
 });
 
 scoreThresholdSlider.addEventListener('input', (e) => {
-    scoreThreshold = parseInt(e.target.value);
+    scoreThreshold = parseFloat(e.target.value);
     document.getElementById('val-score-threshold').textContent = scoreThreshold;
     updateGraphSettings();
 });
@@ -1694,11 +1694,13 @@ function updateGraphSettings() {
         })
         .nodeVal(node => {
             // Scale node size (radius) based on selected attribute
-            if (!nodeSizeAttribute) return 4; // Default constant size
-            if (currentMode === '3D') {
-                return scaleValue(node[nodeSizeAttribute], minNodeVal, maxNodeVal, minNodeSize * nodeSizeMultiplier, maxNodeSize * nodeSizeMultiplier, nodeScaleType);
+            let radius = 4; // Default constant size
+            if (nodeSizeAttribute) {
+                radius = scaleValue(node[nodeSizeAttribute], minNodeVal, maxNodeVal, minNodeSize, maxNodeSize, nodeScaleType);
             }
-            return scaleValue(node[nodeSizeAttribute], minNodeVal, maxNodeVal, minNodeSize, maxNodeSize, nodeScaleType);
+
+            // Adjust hit-area sizing: force-graph uses Math.sqrt(val), 3d-force-graph uses Math.cbrt(val).
+            return currentMode === '3D' ? Math.pow(radius, 3) : Math.pow(radius, 2);
         })
         .nodeRelSize(1) // Use nodeVal directly as radius (or close to it)
         .linkWidth(link => {
@@ -1794,22 +1796,24 @@ function updateGraphSettings() {
                 const group = new THREE.Group();
                 node.__threeGroup = group; // Store reference to update later
 
-                const score = parseFloat(node.neighbour_count) || 0;
+                const score = parseFloat(node[fraudScoreAttribute]) || 0;
                 if (score > scoreThreshold) {
                     // Create ring
-                    let ringColor = 0xffff00; // Yellow for score > 10 (or > scoreThreshold)
-                    if (score >= 66) ringColor = 0xff0000; // Red
-                    else if (score >= 50) ringColor = 0xffa500; // Orange
+                    //console.log(`Node ${node.id} has score ${score} above threshold ${scoreThreshold}, adding ring.`);
+                    let ringColor = 0x00ff00; // green for score > 0.1 (or > scoreThreshold)
+                    if (score >= 0.66) ringColor = 0xff0000; // Red
+                    else if (score >= 0.5) ringColor = 0xffa500; // Orange
+                    else if (score >= 0.1) ringColor = 0xffff00; // Yellow
 
                     // We need to scale the ring based on the node size, but node size might be dynamic.
                     // Let's approximate based on nodeScaleType and min/max.
-                    const nodeRadius = scaleValue(node[nodeSizeAttribute], minNodeVal, maxNodeVal, minNodeSize * nodeSizeMultiplier, maxNodeSize * nodeSizeMultiplier, nodeScaleType);
+                    const nodeRadius = scaleValue(node[nodeSizeAttribute], minNodeVal, maxNodeVal, minNodeSize, maxNodeSize, nodeScaleType);
 
                     // Scale the torus geometry slightly larger than the node
-                    const ringGeometry = new THREE.TorusGeometry(Math.sqrt(nodeRadius), Math.max(0.5, Math.sqrt(nodeRadius) * 0.1), 8, 24);
+                    const ringGeometry = new THREE.TorusGeometry(nodeRadius * 1.4, Math.max(0.2, nodeRadius * 0.15), 8, 24);
 
                     const material = new THREE.MeshBasicMaterial({
-                        color: node === hoverNode ? 0x6c3bfd : ringColor,
+                        color: ringColor,
                         transparent: true,
                         opacity: 0.8
                     });
@@ -1876,12 +1880,13 @@ function updateGraphSettings() {
                 radius = scaleValue(node[nodeSizeAttribute], minNodeVal, maxNodeVal, minNodeSize, maxNodeSize, nodeScaleType);
             }
 
-            const score = parseFloat(node.neighbour_count) || 0;
+            const score = parseFloat(node[fraudScoreAttribute]) || 0;
             if (score > scoreThreshold) {
-                // Draw highlight ring
-                let ringColor = 'yellow';
-                if (score >= 66) ringColor = 'red';
-                else if (score >= 50) ringColor = 'orange';
+                // Create ring
+                let ringColor = 'green'; // green for score < 0.1 (or > scoreThreshold)
+                if (score >= 0.66) ringColor = 'red'; // Red
+                else if (score >= 0.5) ringColor = 'orange'; // Orange
+                else if (score >= 0.1) ringColor = 'yellow'; // Yellow
 
                 ctx.beginPath();
                 ctx.arc(node.x, node.y, radius * 1.4, 0, 2 * Math.PI, false);
@@ -1908,6 +1913,20 @@ function updateGraphSettings() {
                 ctx.fillText(label, node.x, node.y + radius + fontSize, 200);
             }
         })
+            .nodePointerAreaPaint((node, color, ctx) => {
+                let radius = 4;
+                if (nodeSizeAttribute) {
+                    radius = scaleValue(node[nodeSizeAttribute], minNodeVal, maxNodeVal, minNodeSize, maxNodeSize, nodeScaleType);
+                }
+                const score = parseFloat(node[fraudScoreAttribute]) || 0;
+                if (score > scoreThreshold) {
+                    radius *= 1.4; // Expand hit area to cover the highlight ring
+                }
+                ctx.fillStyle = color;
+                ctx.beginPath();
+                ctx.arc(node.x, node.y, radius, 0, 2 * Math.PI, false);
+                ctx.fill();
+            })
             .linkCanvasObjectMode(() => 'after')
             .linkCanvasObject((link, ctx, globalScale) => {
                 if (!edgeLabelAttribute) return;
@@ -2054,11 +2073,14 @@ function updateHighlight() {
             if (graphData && graphData.nodes) {
                 graphData.nodes.forEach(node => {
                     if (node.__ringMesh) {
-                        const score = parseFloat(node.neighbour_count) || 0;
-                        let ringColor = 0xffff00; // Yellow
-                        if (score >= 66) ringColor = 0xff0000; // Red
-                        else if (score >= 50) ringColor = 0xffa500; // Orange
-                        node.__ringMesh.material.color.setHex(ringColor);
+                        const score = parseFloat(node[fraudScoreAttribute]) || 0;
+                        let ringColor = 0x00ff00; // Green
+                        if (score >= 0.66) ringColor = 0xff0000; // Red
+                        else if (score >= 0.5) ringColor = 0xffa500; // Orange
+                        else if (score >= 0.1) ringColor = 0xffff00; // Yellow
+                        
+                        const finalColor = node === hoverNode ? 0x6c3bfd : ringColor;
+                        node.__ringMesh.material.color.setHex(finalColor);
                     }
                 });
             }

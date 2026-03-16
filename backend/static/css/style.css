@@ -42,3 +42,92 @@
 .hide-scrollbar::-webkit-scrollbar {
     display: none;
 }
+
+/* Navbar Styles */
+.navbar {
+    min-height: 70px;
+}
+
+.logo-icon {
+    object-fit: contain;
+}
+
+.nav-link {
+    position: relative;
+    color: #9ca3af !important;
+    transition: all 0.2s ease;
+}
+
+.nav-link:hover {
+    color: #ffffff !important;
+}
+
+.nav-link.active {
+    color: #818cf8 !important;
+}
+
+.selected-nav-link {
+    color: #ffffff !important;
+    font-weight: 600;
+}
+
+.selected-nav-link::after {
+    content: '';
+    position: absolute;
+    bottom: -5px;
+    left: 1rem;
+    right: 1rem;
+    height: 2px;
+    background: #818cf8;
+    border-radius: 2px;
+}
+
+/* Dropdown Customization */
+.dropdown-menu {
+    border: 1px solid #374151;
+    border-radius: 12px;
+    padding: 0.5rem;
+    margin-top: 0.5rem;
+}
+
+.dropdown-item {
+    border-radius: 6px;
+    padding: 0.5rem 1rem;
+    font-size: 0.875rem;
+}
+
+/* User Icon Styling */
+.user-icon {
+    font-size: 0.9rem;
+    padding: 6px;
+    background: rgba(75, 85, 99, 0.3);
+    border-radius: 50%;
+}
+
+/* Sidebar Visibility Fixes */
+#sidebar-panel {
+    transform: translateX(100%) !important;
+    transition: transform 0.3s ease-in-out !important;
+}
+
+#sidebar-panel.sidebar-visible {
+    transform: translateX(0) !important;
+}
+
+/* Bootstrap Border Overrides */
+:root {
+    --bs-border-color: #374151 !important;
+}
+
+body .border-gray-700,
+body .border-b,
+body .border-l,
+body .border-t,
+body .border-r {
+    border-color: #374151 !important;
+}
+
+/* Ensure shorthand .border also uses our color if applied */
+body .border {
+    border-color: #374151 !important;
+}
